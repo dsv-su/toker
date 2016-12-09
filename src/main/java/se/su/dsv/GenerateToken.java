@@ -23,7 +23,7 @@ public class GenerateToken extends HttpServlet
     {
         final String remoteUser = req.getRemoteUser();
         if (remoteUser == null) {
-            resp.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         }
         else {
             final Instant generated = Instant.now();
