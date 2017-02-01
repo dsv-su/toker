@@ -53,6 +53,7 @@ class Main extends ServletContextListener {
     )
     val reg = self.addServlet(name, servlet)
     reg.setLoadOnStartup(1)
+    reg.setAsyncSupported(true)
     reg.addMapping(mapping)
     reg
   }
