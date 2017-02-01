@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS client (
+  uuid CHAR(36) NOT NULL PRIMARY KEY,
+  name VARCHAR(64) NOT NULL,
+  secret CHAR(32) NOT NULL,
+  scopes VARCHAR(255) NOT NULL DEFAULT '',
+  redirect_uri VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS token (
+  uuid CHAR(36) NOT NULL,
+  expires DATETIME NOT NULL,
+  payload VARCHAR(1024) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS code (
+  client_id CHAR(36) NOT NULL,
+  uuid CHAR(36) NOT NULL,
+  expires DATETIME NOT NULL,
+  payload VARCHAR(1024) NOT NULL,
+  redirect_uri VARCHAR(255),
+  PRIMARY KEY (client_id, uuid)
+);
