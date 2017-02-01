@@ -49,22 +49,12 @@ class Main extends ServletContextListener {
     val servlet = new Http4sServlet2(
       service = service,
       asyncTimeout = AsyncTimeoutSupport.DefaultAsyncTimeout,
-      threadPool = Strategy.DefaultExecutorService,
-      servletIo = servletIo(self)
+      threadPool = Strategy.DefaultExecutorService
     )
     val reg = self.addServlet(name, servlet)
     reg.setLoadOnStartup(1)
-    reg.setAsyncSupported(true)
     reg.addMapping(mapping)
     reg
-  }
-
-  private def servletIo(self: ServletContext): ServletIo = {
-    val version = ServletApiVersion(self.getMajorVersion, self.getMinorVersion)
-    if (version >= ServletApiVersion(3, 1))
-      NonBlockingServletIo(4096)
-    else
-      BlockingServletIo(4096)
   }
 
   override def contextDestroyed(sce: ServletContextEvent): Unit = ()
