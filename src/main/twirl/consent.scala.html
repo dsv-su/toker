@@ -30,7 +30,9 @@
             <input type="hidden" name="client_id" value="@authorizationRequest.clientId"/>
             <input type="hidden" name="redirect_uri" value="@redirectUri.renderString"/>
             <input type="hidden" name="scope" value="@{authorizationRequest.scopes mkString " "}"/>
-            <input type="hidden" name="state" value="@{authorizationRequest.state getOrElse ""}"/>
+            @authorizationRequest.state.map { state =>
+            <input type="hidden" name="state" value="@state"/>
+            }
             <input type="hidden" name="nonce" value="@nonce.toString"/>
             <button type="submit" class="btn btn-primary">Allow</button>
             <a class="btn btn-default" onclick="window.history.back()">Deny</a>
