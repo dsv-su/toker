@@ -43,5 +43,11 @@ resolvers += Resolver.sonatypeRepo("releases")
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 
-enablePlugins(WarPlugin)
+enablePlugins(JettyPlugin)
 enablePlugins(SbtTwirl)
+
+containerConfigFile := Some(file("jetty.xml"))
+
+containerLibs in Jetty ++= Seq(
+  "mysql" % "mysql-connector-java" % "5.1.40"
+)
