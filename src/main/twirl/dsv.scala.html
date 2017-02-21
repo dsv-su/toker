@@ -1,0 +1,46 @@
+@(title: String)(content: Html)
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="/css/normalize.min.css" crossorigin="anonymous" integrity="sha384-VfGUvl2eF3o7fKbFYJadfdDEMA9JRPc6Oe51TI1CpEsIBVLNjomGGboQmxsmp2a9" />
+    <link rel="stylesheet" href="/css/style.css" crossorigin="anonymous" integrity="sha384-R8szPm5kOSTyMV7yPZRvz3BMjOJ6HlFOng8r3aG/cFyNKm0dEOn9fajnYCVonEot" />
+    <title>@title</title>
+  </head>
+  <body>
+    <div id="container"> <!-- Start of container -->
+      <header id="header">
+        <a id="header-su" href="http://www.su.se/english" title="Stockholm University home">
+          <img id="header-su-text" src="images/su_logo_responsive_en.png" alt="Stockholm University">
+          <img id="header-su-logo" src="images/su_logo_en.gif" alt="Stockholm University">
+        </a>
+
+        <a id="header-dsv" href="http://dsv.su.se/en/" title="To DSV's start page" accesskey="1">
+          <img id="header-dsv-logo" src="images/dsv_logo_en.png" alt="Department of Computer and Systems Sciences">
+          <div id="header-dsv-text">Department of Computer and Systems Sciences</div>
+        </a>
+        <div class="clear-float"></div>
+      </header>
+
+      <main>
+        @content
+      </main>
+
+      <footer id="footer">
+        <div id="footer-left">
+          <address id="footer-address">
+            <b>Department of Computer and Systems Sciences, DSV</b><br />
+            Stockholm University, DSV, Postbox 7003, SE-164 07 Kista, Sweden | Phone: <a href="tel:+468162000">+46 8 16 20 00</a>
+          </address>
+        </div>
+        <div id="footer-right">
+          <a id="footer-contact-link" href="http://dsv.su.se/en/about/contact" accesskey="7">Contact</a>
+        </div>
+        <div class="clear-float"></div>
+      </footer>
+    </div>
+  </body>
+</html>

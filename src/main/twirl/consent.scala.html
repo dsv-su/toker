@@ -3,39 +3,40 @@
 @import se.su.dsv.oauth.{AuthorizationRequest, Client, ResponseType}
 @(redirectUri: Uri, client: Client, nonce: UUID, request: Request, authorizationRequest: AuthorizationRequest)
 
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-    </head>
-    <body>
-        <h1>@client.name</h1>
-        <p>is requesting permission to access:</p>
-        <ul>
-            @authorizationRequest.scopes.map { scope =>
-              <li>@scope</li>
-            }
-        </ul>
-        @params = @{
-            request.params
-              .filterKeys(Set("response_type", "client_id", "redirect_uri", "scope", "state"))
-              .foldRight("") { case ((key, value), params) => s"$params&$key=$value" }
-        }
-        <form action="/authorize?@params" method="post">
-            @authorizationRequest.responseType match {
-                case ResponseType.Token => { <input type="hidden" name="response_type" value="token"/> }
-                case ResponseType.Code => { <input type="hidden" name="response_type" value="code"/> }
-            }
+@params = @{
+  request.params
+    .filterKeys(Set("response_type", "client_id", "redirect_uri", "scope", "state").apply)
+    .foldRight("") { case ((key, value), params) => s"$params&$key=$value" }
+}
 
-            <input type="hidden" name="client_id" value="@authorizationRequest.clientId"/>
-            <input type="hidden" name="redirect_uri" value="@redirectUri.renderString"/>
-            <input type="hidden" name="scope" value="@{authorizationRequest.scopes mkString " "}"/>
-            @authorizationRequest.state.map { state =>
-            <input type="hidden" name="state" value="@state"/>
-            }
-            <input type="hidden" name="nonce" value="@nonce.toString"/>
-            <button type="submit" class="btn btn-primary">Allow</button>
-            <a class="btn btn-default" onclick="window.history.back()">Deny</a>
-        </form>
-    </body>
-</html>
+@dsv(s"Authorize ${client.name} for DSV services") {
+  <h1>@client.name</h1>
+  <p>is requesting permission to access:</p>
+  <ul>
+  @authorizationRequest.scopes.map { scope =>
+    <li>@scope</li>
+  }
+  </ul>
+
+  <form action="/authorize?@params" method="post">
+    @authorizationRequest.responseType match {
+      case ResponseType.Token => {
+        <input type="hidden" name="response_type" value="token"/>
+      }
+      case ResponseType.Code => {
+        <input type="hidden" name="response_type" value="code"/>
+      }
+    }
+
+    <input type="hidden" name="client_id" value="@authorizationRequest.clientId"/>
+    <input type="hidden" name="redirect_uri" value="@redirectUri.renderString"/>
+    <input type="hidden" name="scope" value="@{authorizationRequest.scopes mkString " "}"/>
+    @authorizationRequest.state.map { state =>
+      <input type="hidden" name="state" value="@state"/>
+    }
+    <input type="hidden" name="nonce" value="@nonce.toString"/>
+    <button type="submit" class="btn btn-primary">Allow</button>
+  </form>
+
+  <p>If you do not want to grant the system permission simply close this window.</p>
+}
