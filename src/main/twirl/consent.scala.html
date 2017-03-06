@@ -11,7 +11,7 @@
 
 @dsv(s"Authorize ${client.name} for DSV services") {
   <h1>@client.name</h1>
-  <p>is requesting permission to access:</p>
+  <p>is requesting permission to perform the following actions:</p>
   <ul>
   @authorizationRequest.scopes.map { scope =>
     <li>@scope</li>
@@ -37,6 +37,12 @@
     <input type="hidden" name="nonce" value="@nonce.toString"/>
     <button type="submit" class="btn btn-primary">Allow</button>
   </form>
+
+  <p>
+    If you allow this a short duration ticket will be given to the specified
+    system (@client.name) to take the above actions
+    (@{authorizationRequest.scopes mkString ", "}) in your name.
+  </p>
 
   <p>If you do not want to grant the system permission simply close this window.</p>
 }
