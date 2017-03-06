@@ -98,7 +98,7 @@ class Authorize
           for {
             token <- generateToken(toPayload(request))
             callback: Uri = redirectUri.copy(
-              fragment = Some(s"access_token=$token&token_type=Bearer&expires_in=${token.duration.getSeconds}&state=${authorizationRequest.state.getOrElse("")}")
+              fragment = Some(s"access_token=${token.token.token}&token_type=Bearer&expires_in=${token.duration.getSeconds}&state=${authorizationRequest.state.getOrElse("")}")
             )
             response <- SeeOther(callback)
           } yield response
