@@ -1,11 +1,9 @@
 package se.su.dsv.oauth.endpoint
 
-import java.time.{Duration, Instant}
-import java.util.UUID
+import java.time.Duration
 
 import org.http4s._
 import org.http4s.dsl._
-import org.http4s.twirl._
 import se.su.dsv.oauth._
 
 import scalaz.OptionT
@@ -55,27 +53,23 @@ class Authorize
       val response = for {
         authorizationRequest <- OptionT(Task.now(AuthorizationRequest.fromRaw(request)))
         client <- lookupClient(authorizationRequest.clientId)
-        uuid <- some[Task, UUID](UUID.randomUUID())
-        now <- some[Task, Instant](Instant.now())
         _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
         redirectUri <- validateRedirectUri(authorizationRequest.redirectUri, client.redirectUri)
-      } yield {
-        val nonce = Cookie(
-          name = "nonce",
-          content = uuid.toString,
-          secure = true,
-          httpOnly = true,
-          expires = Some(now.plus(NonceValidFor)),
-          maxAge = Some(NonceValidFor.getSeconds)
-        )
-        val body = html.consent(
-          redirectUri,
-          client,
-          nonce = uuid,
-          request,
-          authorizationRequest
-        )
-        Ok(body).addCookie(nonce)
+      } yield authorizationRequest.responseType match {
+        case ResponseType.Code =>
+          for {
+            code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, toPayload(request))
+            callback: Uri = redirectUri +*? code +?? ("state", authorizationRequest.state)
+            response <- SeeOther(callback)
+          } yield response
+        case ResponseType.Token =>
+          for {
+            token <- generateToken(toPayload(request))
+            callback: Uri = redirectUri.copy(
+              fragment = Some(s"access_token=${token.token.token}&token_type=Bearer&expires_in=${token.duration.getSeconds}&state=${authorizationRequest.state.getOrElse("")}")
+            )
+            response <- SeeOther(callback)
+          } yield response
       }
       response.run.flatMap(_ getOrElse Forbidden())
 
