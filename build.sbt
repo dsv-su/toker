@@ -12,7 +12,6 @@ libraryDependencies ++= Seq(
   "org.http4s" %% "http4s-dsl"          % "0.15.3a",
   "org.http4s" %% "http4s-argonaut"     % "0.15.3a",
   "org.http4s" %% "http4s-servlet"      % "0.15.3a",
-  "org.http4s" %% "http4s-twirl"        % "0.15.3a",
   "org.tpolecat" %% "doobie-core"      % "0.4.1",
   "org.tpolecat" %% "doobie-scalatest" % "0.4.1" % Test,
   "com.h2database" % "h2" % "1.4.193" % Test,
@@ -44,7 +43,6 @@ resolvers += Resolver.sonatypeRepo("releases")
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 
 enablePlugins(JettyPlugin)
-enablePlugins(SbtTwirl)
 
 containerConfigFile := Some(file("jetty.xml"))
 
