@@ -1,7 +1,5 @@
 package se.su.dsv.oauth.endpoint
 
-import java.time.Duration
-
 import org.http4s._
 import org.http4s.dsl._
 import se.su.dsv.oauth._
@@ -17,8 +15,6 @@ class Authorize
   generateCode: (String, Option[Uri], Payload) => Task[Code]
 )
 {
-  private val NonceValidFor = Duration.ofHours(1)
-
   def validateRedirectUri(requestedRedirectUri: Option[Uri], configuredRedirectUri: Uri): OptionT[Task, Uri] = {
     val redirectUri = requestedRedirectUri getOrElse configuredRedirectUri
     if (redirectUri == configuredRedirectUri)

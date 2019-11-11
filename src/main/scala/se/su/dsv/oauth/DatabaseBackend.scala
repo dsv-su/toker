@@ -93,17 +93,17 @@ object DatabaseBackend {
         .query[Payload]
   }
 
-  private[this] implicit val uriMeta: Meta[Uri] = Meta[String].nxmap(
+  implicit val uriMeta: Meta[Uri] = Meta[String].nxmap(
     Uri.unsafeFromString,
     _.renderString
   )
 
-  private[this] implicit val spaceSeparated: Meta[Set[String]] = Meta[String].nxmap(
+  implicit val spaceSeparated: Meta[Set[String]] = Meta[String].nxmap(
     _.split(' ').toSet,
     _.mkString(" ")
   )
 
-  private[this] implicit val uuidMeta: Meta[UUID] = Meta[String].nxmap(
+  implicit val uuidMeta: Meta[UUID] = Meta[String].nxmap(
     UUID.fromString,
     _.toString
   )

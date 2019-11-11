@@ -1,6 +1,6 @@
 package se.su.dsv.oauth
 
-import java.time.{Duration, Instant}
+import java.time.Duration
 
 import argonaut.Argonaut._
 import argonaut._

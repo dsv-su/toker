@@ -4,7 +4,7 @@ organization := "se.su.dsv"
 
 version := "1.0"
 
-scalaVersion := "2.12.1"
+scalaVersion := "2.12.10"
 
 libraryDependencies ++= Seq(
   "javax.servlet" % "javax.servlet-api" % "3.0.1" % "provided",
@@ -44,7 +44,7 @@ addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 
 enablePlugins(JettyPlugin)
 
-containerConfigFile := Some(file("jetty.xml"))
+containerArgs in Jetty := Seq("--config", "jetty.xml")
 
 containerLibs in Jetty ++= Seq(
   "mysql" % "mysql-connector-java" % "5.1.40"

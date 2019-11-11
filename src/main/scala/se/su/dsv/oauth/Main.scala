@@ -11,7 +11,6 @@ import org.http4s.HttpService
 import org.http4s.server.AsyncTimeoutSupport
 import org.http4s.servlet._
 import se.su.dsv.oauth.endpoint._
-import org.http4s.servlet.syntax._
 
 import scalaz.concurrent.{Strategy, Task}
 

@@ -98,7 +98,6 @@ class Http4sServlet2(service: HttpService,
         renderResponse(response, servletResponse, bodyWriter).unsafePerformSync
       }
       else {
-        val servletRequest = ctx.getRequest.asInstanceOf[HttpServletRequest]
         logger.warn(s"Async context timed out, but response was already committed: ${request.method} ${request.uri.path}")
       }
       ctx.complete()
