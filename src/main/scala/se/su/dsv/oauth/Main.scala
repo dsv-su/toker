@@ -1,18 +1,15 @@
 package se.su.dsv.oauth
 
+import cats.effect.IO
 import javax.naming.InitialContext
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
 import javax.servlet.annotation.WebListener
 import javax.sql.DataSource
-
-import doobie.util.transactor.DataSourceTransactor
+import doobie.util.transactor.Transactor
 import org.flywaydb.core.Flyway
 import org.http4s.HttpService
-import org.http4s.server.AsyncTimeoutSupport
 import org.http4s.servlet._
 import se.su.dsv.oauth.endpoint._
-
-import scalaz.concurrent.{Strategy, Task}
 
 @WebListener
 class Main extends ServletContextListener {
@@ -24,7 +21,7 @@ class Main extends ServletContextListener {
     flyway.setDataSource(dataSource)
     flyway.migrate()
 
-    val backend = new DatabaseBackend(DataSourceTransactor[Task](dataSource))
+    val backend = new DatabaseBackend(Transactor.fromDataSource[IO](dataSource))
 
     mountService(ctx,
       name = "authorize",
@@ -44,11 +41,9 @@ class Main extends ServletContextListener {
     ()
   }
 
-  def mountService(self: ServletContext, name: String, service: HttpService, mapping: String = "/*"): ServletRegistration.Dynamic = {
-    val servlet = new Http4sServlet2(
+  def mountService(self: ServletContext, name: String, service: HttpService[IO], mapping: String = "/*"): ServletRegistration.Dynamic = {
+    val servlet = Http4sServlet2(
       service = service,
-      asyncTimeout = AsyncTimeoutSupport.DefaultAsyncTimeout,
-      threadPool = Strategy.DefaultExecutorService
     )
     val reg = self.addServlet(name, servlet)
     reg.setLoadOnStartup(1)

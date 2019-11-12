@@ -1,27 +1,29 @@
 package org.http4s
 package servlet
 
-import java.util.concurrent.ExecutorService
-
-import org.http4s.headers.`Transfer-Encoding`
-import server._
-import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 import java.net.InetSocketAddress
 
-import scala.collection.JavaConverters._
+import cats.data.OptionT
+import cats.effect.{Async, Effect, IO, Sync}
+import cats.implicits.{catsSyntaxEither => _, _}
+import fs2.async
 import javax.servlet._
-
-import scala.concurrent.duration.Duration
-import scalaz.concurrent.{Strategy, Task}
-import scalaz.{-\/, \/-}
+import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse, HttpSession}
+import org.http4s.headers.`Transfer-Encoding`
+import org.http4s.server._
 import org.log4s.getLogger
+
+import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.Duration
 
 // Copied the entire Servlet since we need to add attributes to the request and
 // there is no other way to do it
-class Http4sServlet2(service: HttpService,
-                     asyncTimeout: Duration = Duration.Inf,
-                     threadPool: ExecutorService = Strategy.DefaultExecutorService,
-                     private[this] var servletIo: ServletIo = BlockingServletIo(4096))
+class Http4sServlet2[F[_]](service: HttpService[F],
+                           asyncTimeout: Duration = Duration.Inf,
+                           implicit private[this] val executionContext: ExecutionContext = ExecutionContext.global,
+                           private[this] var servletIo: ServletIo[F],
+                           serviceErrorHandler: ServiceErrorHandler[F])(implicit F: Effect[F])
   extends HttpServlet
 {
   private[this] val logger = getLogger
@@ -32,6 +34,11 @@ class Http4sServlet2(service: HttpService,
 
   // micro-optimization: unwrap the service and call its .run directly
   private[this] val serviceFn = service.run
+  private[this] val optionTSync = Sync[OptionT[F, ?]]
+
+  object ServletRequestKeys {
+    val HttpSession: AttributeKey[Option[HttpSession]] = AttributeKey[Option[HttpSession]]
+  }
 
   override def init(config: ServletConfig): Unit = {
     val servletContext = config.getServletContext
@@ -48,7 +55,7 @@ class Http4sServlet2(service: HttpService,
   private def verifyServletIo(servletApiVersion: ServletApiVersion): Unit = servletIo match {
     case NonBlockingServletIo(chunkSize) if servletApiVersion < ServletApiVersion(3, 1) =>
       logger.warn("Non-blocking servlet I/O requires Servlet API >= 3.1. Falling back to blocking I/O.")
-      servletIo = BlockingServletIo(chunkSize)
+      servletIo = BlockingServletIo[F](chunkSize)
     case _ => // cool
   }
 
@@ -63,57 +70,81 @@ class Http4sServlet2(service: HttpService,
       ctx.setTimeout(asyncTimeoutMillis)
       // Must be done on the container thread for Tomcat's sake when using async I/O.
       val bodyWriter = servletIo.initWriter(servletResponse)
-      toRequest(servletRequest).fold(
-        onParseFailure(_, servletResponse, bodyWriter),
-        handleRequest(ctx, _, bodyWriter)
-      ).unsafePerformAsync {
-        case \/-(()) => ctx.complete()
-        case -\/(t) => errorHandler(servletRequest, servletResponse)(t)
+      async.unsafeRunAsync(
+        toRequest(servletRequest).fold(
+          onParseFailure(_, servletResponse, bodyWriter),
+          handleRequest(ctx, _, bodyWriter)
+        )) {
+        case Right(()) =>
+          IO(ctx.complete())
+        case Left(t) =>
+          IO(errorHandler(servletRequest, servletResponse)(t))
       }
     }
     catch errorHandler(servletRequest, servletResponse)
 
   private def onParseFailure(parseFailure: ParseFailure,
                              servletResponse: HttpServletResponse,
-                             bodyWriter: BodyWriter): Task[Unit] = {
-    val response = Response(Status.BadRequest).withBody(parseFailure.sanitized)
+                             bodyWriter: BodyWriter[F]): F[Unit] = {
+    val response = Response[F](Status.BadRequest).withBody(parseFailure.sanitized)
     renderResponse(response, servletResponse, bodyWriter)
   }
 
   private def handleRequest(ctx: AsyncContext,
-                            request: Request,
-                            bodyWriter: BodyWriter): Task[Unit] = {
+                            request: Request[F],
+                            bodyWriter: BodyWriter[F]): F[Unit] = {
     ctx.addListener(new AsyncTimeoutHandler(request, bodyWriter))
-    val response = Task.fork(serviceFn(request))(threadPool)
+    // Note: We're catching silly user errors in the lift => flatten.
+    val response = Async.shift(executionContext) *>
+      optionTSync
+        .suspend(serviceFn(request))
+        .getOrElse(Response.notFound)
+        .recoverWith(serviceErrorHandler(request))
+
     val servletResponse = ctx.getResponse.asInstanceOf[HttpServletResponse]
     renderResponse(response, servletResponse, bodyWriter)
   }
 
-  private class AsyncTimeoutHandler(request: Request, bodyWriter: BodyWriter) extends AbstractAsyncListener {
+  private class AsyncTimeoutHandler(request: Request[F], bodyWriter: BodyWriter[F]) extends AbstractAsyncListener {
     override def onTimeout(event: AsyncEvent): Unit = {
       val ctx = event.getAsyncContext
       val servletResponse = ctx.getResponse.asInstanceOf[HttpServletResponse]
-      if (!servletResponse.isCommitted) {
-        val response = Response(Status.InternalServerError).withBody("Service timed out.")
-        renderResponse(response, servletResponse, bodyWriter).unsafePerformSync
+      async.unsafeRunAsync {
+        if (!servletResponse.isCommitted) {
+          val response =
+            Response[F](Status.InternalServerError)
+              .withBody("Service timed out.")
+          renderResponse(response, servletResponse, bodyWriter)
+        } else {
+          logger.warn(s"Async context timed out, but response was already committed: ${request.method} ${request.uri.path}")
+          F.unit
+        }
+      } {
+        case Right(()) => IO(ctx.complete())
+        case Left(t) => IO(logger.error(t)("Error timing out async context")) *> IO(ctx.complete())
       }
-      else {
-        logger.warn(s"Async context timed out, but response was already committed: ${request.method} ${request.uri.path}")
-      }
-      ctx.complete()
     }
   }
 
-  private def renderResponse(response: Task[Response],
+  private def renderResponse(response: F[Response[F]],
                              servletResponse: HttpServletResponse,
-                             bodyWriter: BodyWriter): Task[Unit] =
+                             bodyWriter: BodyWriter[F]): F[Unit] =
     response.flatMap { r =>
       // Note: the servlet API gives us no undeprecated method to both set
       // a body and a status reason.  We sacrifice the status reason.
-      servletResponse.setStatus(r.status.code)
-      for (header <- r.headers if header.isNot(`Transfer-Encoding`))
-        servletResponse.addHeader(header.name.toString, header.value)
-      bodyWriter(r)
+      F.delay {
+        servletResponse.setStatus(r.status.code)
+        for (header <- r.headers if header.isNot(`Transfer-Encoding`))
+          servletResponse.addHeader(header.name.toString, header.value)
+      }
+        .attempt
+        .flatMap {
+          case Right(()) => bodyWriter(r)
+          case Left(t) =>
+            r.body.drain.compile.drain.handleError {
+              case t2 => logger.error(t2)("Error draining body")
+            } *> F.raiseError(t)
+        }
     }
 
   private def errorHandler(servletRequest: ServletRequest, servletResponse: HttpServletResponse): PartialFunction[Throwable, Unit] = {
@@ -122,15 +153,19 @@ class Http4sServlet2(service: HttpService,
 
     case t: Throwable =>
       logger.error(t)("Error processing request")
-      val response = Task.now(Response(Status.InternalServerError))
+      val response = F.pure(Response[F](Status.InternalServerError))
       // We don't know what I/O mode we're in here, and we're not rendering a body
       // anyway, so we use a NullBodyWriter.
-      renderResponse(response, servletResponse, NullBodyWriter).unsafePerformSync
-      if (servletRequest.isAsyncStarted)
-        servletRequest.getAsyncContext.complete()
+      async
+        .unsafeRunAsync(renderResponse(response, servletResponse, NullBodyWriter)) { _ =>
+          IO {
+            if (servletRequest.isAsyncStarted)
+              servletRequest.getAsyncContext.complete()
+          }
+        }
   }
 
-  private def toRequest(req: HttpServletRequest): ParseResult[Request] =
+  private def toRequest(req: HttpServletRequest): ParseResult[Request[F]] =
     for {
       method <- Method.fromString(req.getMethod)
       uri <- Uri.requestTarget(Option(req.getQueryString).map { q => s"${req.getRequestURI}?$q" }.getOrElse(req.getRequestURI))
@@ -149,6 +184,7 @@ class Http4sServlet2(service: HttpService,
           req.isSecure
         )),
         Request.Keys.ServerSoftware(serverSoftware),
+        ServletRequestKeys.HttpSession(Option(req.getSession(false))),
         se.su.dsv.oauth.RemoteUser(req.getRemoteUser)
       )
     )
@@ -160,4 +196,17 @@ class Http4sServlet2(service: HttpService,
     } yield Header(name, value)
     Headers(headers.toSeq : _*)
   }
+}
+
+object Http4sServlet2 {
+  def apply[F[_]: Effect](service: HttpService[F],
+                          asyncTimeout: Duration = Duration.Inf,
+                          executionContext: ExecutionContext = ExecutionContext.global): Http4sServlet2[F] =
+    new Http4sServlet2[F](
+      service,
+      asyncTimeout,
+      executionContext,
+      BlockingServletIo[F](DefaultChunkSize),
+      DefaultServiceErrorHandler
+    )
 }

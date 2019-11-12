@@ -2,30 +2,29 @@ package se.su.dsv.oauth.endpoint
 
 import java.util.UUID
 
+import cats.data.OptionT
+import cats.effect.IO
 import org.http4s._
 import org.http4s.argonaut._
-import org.http4s.dsl._
+import org.http4s.Uri.uri
 import org.scalatest._
-import scodec.bits.ByteVector
 import se.su.dsv.oauth.Payload
 
-import scalaz.OptionT
-import scalaz.concurrent.Task
-import scalaz.stream.Process
-
-class VerifySuite extends WordSpec with Matchers with Inside {
+class VerifySuite extends WordSpec with Matchers with Inside with OptionValues {
   "Verify endpoint" when {
     "no valid tokens exist" should {
       "respond with forbidden" in {
-        val verify = new Verify(_ => OptionT.none).service
+        val verify = new Verify[IO](_ => OptionT.none).service
 
         val response = verify(Request(
-          method = POST,
+          method = Method.POST,
           uri = uri("/"),
-          body = Process.emit(ByteVector.fromUUID(UUID.randomUUID())).toSource
+          body = fs2.Stream(UUID.randomUUID().toString.getBytes: _*).covary[IO]
         ))
 
-        response.unsafePerformSync.status should be(Forbidden)
+        inside(response.value.unsafeRunSync) {
+          case Some(value) => value.status should be(Status.Forbidden)
+        }
       }
     }
 
@@ -33,17 +32,17 @@ class VerifySuite extends WordSpec with Matchers with Inside {
       "respond with the payload" in {
         val expected = Payload("principal")
         val token = UUID.randomUUID()
-        val verify = new Verify(str => OptionT.some[Task, Payload](expected).filter(_ => str.token == token.toString)).service
+        val verify = new Verify[IO](str => OptionT.some[IO](expected).filter(_ => str.token == token.toString)).service
 
         val response = verify(Request(
-          method = POST,
+          method = Method.POST,
           uri = uri("/"),
-          body = Process.emit(ByteVector(token.toString.getBytes())).toSource
+          body = fs2.Stream(token.toString.getBytes(): _*).covary[IO]
         ))
 
-        inside(response.unsafePerformSync) {
-          case Ok(resp) =>
-            val payload = resp.as[Payload](jsonOf).unsafePerformSync
+        inside(response.value.unsafeRunSync()) {
+          case Some(Status.Ok(resp)) =>
+            val payload = resp.as[Payload](implicitly, jsonOf).unsafeRunSync()
             payload should be(expected)
         }
       }

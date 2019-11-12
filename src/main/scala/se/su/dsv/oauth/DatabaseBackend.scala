@@ -3,27 +3,29 @@ package se.su.dsv.oauth
 import java.time.{Duration, Instant}
 import java.util.UUID
 
-import doobie.imports._
+import cats.data.OptionT
+import cats.effect.Sync
+import cats.syntax.all._
+import doobie._
+import doobie.implicits._
 import org.http4s.Uri
 
 import scala.collection.immutable.Set
-import scalaz.OptionT
-import scalaz.concurrent.Task
 
-class DatabaseBackend(xa: Transactor[Task]) {
+class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
   import DatabaseBackend._
 
   private val TokenDuration: Duration = Duration.ofHours(1)
 
-  def lookupClient(clientId: String): OptionT[Task, Client] =
+  def lookupClient(clientId: String): OptionT[F, Client] =
     OptionT(queries.lookupClient(clientId)
       .option
       .transact(xa))
 
-  def generateToken(payload: Payload): Task[GeneratedToken] =
+  def generateToken(payload: Payload): F[GeneratedToken] =
     for {
-      uuid <- Task.delay(UUID.randomUUID())
-      now <- Task.delay(Instant.now())
+      uuid <- S.delay(UUID.randomUUID())
+      now <- S.delay(Instant.now())
       expiration = now.plus(TokenDuration)
       _ <- (for {
         _ <- queries.purgeExpiredTokens(now).run
@@ -31,10 +33,10 @@ class DatabaseBackend(xa: Transactor[Task]) {
       } yield ()).transact(xa)
     } yield GeneratedToken(Token(uuid.toString), TokenDuration)
 
-  def generateCode(clientId: String, redirectUri: Option[Uri], payload: Payload): Task[Code] =
+  def generateCode(clientId: String, redirectUri: Option[Uri], payload: Payload): F[Code] =
     for {
-      uuid <- Task.delay(UUID.randomUUID())
-      now <- Task.delay(Instant.now())
+      uuid <- S.delay(UUID.randomUUID())
+      now <- S.delay(Instant.now())
       expiration = now.plus(Duration.ofMinutes(1))
       _ <- (for {
         _ <- queries.purgeExpiredCodes(now).run
@@ -42,15 +44,15 @@ class DatabaseBackend(xa: Transactor[Task]) {
       } yield ()).transact(xa)
     } yield Code(redirectUri, uuid, payload)
 
-  def lookupCode(clientId: String, uuidString: String): OptionT[Task, Code] =
+  def lookupCode(clientId: String, uuidString: String): OptionT[F, Code] =
     OptionT(for {
-      now <- Task.delay(Instant.now())
+      now <- S.delay(Instant.now())
       code <- queries.lookupCode(clientId, uuidString, now).option.transact(xa)
     } yield code)
 
-  def getPayload(token: Token): OptionT[Task, Payload] =
+  def getPayload(token: Token): OptionT[F, Payload] =
     OptionT(for {
-      now <- Task.delay(Instant.now())
+      now <- S.delay(Instant.now())
       payload <- queries.getPayload(token, now).option.transact(xa)
     } yield payload)
 }
@@ -93,17 +95,17 @@ object DatabaseBackend {
         .query[Payload]
   }
 
-  implicit val uriMeta: Meta[Uri] = Meta[String].nxmap(
+  implicit val uriMeta: Meta[Uri] = Meta[String].xmap(
     Uri.unsafeFromString,
     _.renderString
   )
 
-  implicit val spaceSeparated: Meta[Set[String]] = Meta[String].nxmap(
+  implicit val spaceSeparated: Meta[Set[String]] = Meta[String].xmap(
     _.split(' ').toSet,
     _.mkString(" ")
   )
 
-  implicit val uuidMeta: Meta[UUID] = Meta[String].nxmap(
+  implicit val uuidMeta: Meta[UUID] = Meta[String].xmap(
     UUID.fromString,
     _.toString
   )
