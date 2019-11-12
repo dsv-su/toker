@@ -16,7 +16,7 @@ class Verify[F[_]]
 )(implicit S: Sync[F]) extends Http4sDsl[F]
 {
 
-  def service: HttpService[F] = HttpService[F] {
+  def service: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ POST -> Root =>
       val prg = for {
         uuid <- OptionT.liftF(request.as[String])

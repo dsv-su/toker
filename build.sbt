@@ -6,7 +6,7 @@ version := "1.0"
 
 scalaVersion := "2.12.10"
 
-val http4sVersion = "0.18.24"
+val http4sVersion = "0.20.13"
 
 def http4s(module: String): ModuleID = "org.http4s" %% s"http4s-$module" % http4sVersion
 
@@ -16,8 +16,8 @@ libraryDependencies ++= Seq(
   http4s("dsl"),
   http4s("argonaut"),
   http4s("servlet"),
-  "org.tpolecat" %% "doobie-core"      % "0.5.1",
-  "org.tpolecat" %% "doobie-scalatest" % "0.5.1" % Test,
+  "org.tpolecat" %% "doobie-core"      % "0.7.1",
+  "org.tpolecat" %% "doobie-scalatest" % "0.7.1" % Test,
   "com.h2database" % "h2" % "1.4.193" % Test,
   "org.slf4j" % "slf4j-simple" % "1.7.22",
   "org.flywaydb" % "flyway-core" % "4.0.3"

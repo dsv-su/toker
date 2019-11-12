@@ -1,13 +1,12 @@
 package se.su.dsv.oauth.endpoint
 
-import cats.Foldable
-import cats.data.{NonEmptyList, OptionT}
+import cats.data.OptionT
 import cats.data.OptionT.{none, some}
 import cats.effect.Sync
 import cats.syntax.all._
 import org.http4s._
 import org.http4s.dsl._
-import org.http4s.headers.Location
+import org.http4s.headers.{Cookie, Location}
 import se.su.dsv.oauth._
 
 class Authorize[F[_]]
@@ -34,8 +33,8 @@ class Authorize[F[_]]
 
   def validateNonce(form: UrlForm, request: Request[F]): OptionT[F, Unit] = {
     val formNonce = form.getFirst("nonce")
-    val cookieNonce = request.headers.get(headers.Cookie).flatMap(v => Foldable[NonEmptyList].collectFirst(v.values) {
-      case Cookie(name, content, _, _, _, _, _, _, _) if name == "nonce" => content
+    val cookieNonce = request.headers.get(Cookie).flatMap(_.values.collectFirst {
+      case RequestCookie(name, content) if name == "nonce" => content
     })
     if (formNonce.exists(s => cookieNonce.contains(s)))
       some(())
@@ -44,9 +43,9 @@ class Authorize[F[_]]
   }
 
   private def toPayload(request: Request[F]): Payload =
-    Payload(request.attributes(RemoteUser))
+    Payload(request.attributes.lookup(RemoteUser).get)
 
-  def service: HttpService[F] = HttpService [F]{
+  def service: HttpRoutes[F] = HttpRoutes.of [F]{
     case request @ GET -> Root =>
       val response = for {
         authorizationRequest <- OptionT(Sync[F].pure(AuthorizationRequest.fromRaw(request)))

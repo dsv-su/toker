@@ -1,15 +1,16 @@
 package se.su.dsv.oauth
 
-import cats.effect.IO
+import cats.effect.{ConcurrentEffect, ContextShift, IO}
 import javax.naming.InitialContext
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
 import javax.servlet.annotation.WebListener
 import javax.sql.DataSource
 import doobie.util.transactor.Transactor
 import org.flywaydb.core.Flyway
-import org.http4s.HttpService
-import org.http4s.servlet._
+import org.http4s.HttpRoutes
 import se.su.dsv.oauth.endpoint._
+
+import scala.concurrent.ExecutionContext
 
 @WebListener
 class Main extends ServletContextListener {
@@ -21,7 +22,11 @@ class Main extends ServletContextListener {
     flyway.setDataSource(dataSource)
     flyway.migrate()
 
-    val backend = new DatabaseBackend(Transactor.fromDataSource[IO](dataSource))
+    implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+    val connectEC = ExecutionContext.global
+    val transactEC = ExecutionContext.global
+
+    val backend = new DatabaseBackend(Transactor.fromDataSource[IO](dataSource, connectEC, transactEC))
 
     mountService(ctx,
       name = "authorize",
@@ -41,8 +46,12 @@ class Main extends ServletContextListener {
     ()
   }
 
-  def mountService(self: ServletContext, name: String, service: HttpService[IO], mapping: String = "/*"): ServletRegistration.Dynamic = {
-    val servlet = Http4sServlet2(
+  def mountService(
+      self: ServletContext,
+      name: String,
+      service: HttpRoutes[IO],
+      mapping: String = "/*")(implicit CE: ConcurrentEffect[IO]): ServletRegistration.Dynamic = {
+    val servlet = ShibbolethAwareAsyncHttp4sServlet(
       service = service,
     )
     val reg = self.addServlet(name, servlet)

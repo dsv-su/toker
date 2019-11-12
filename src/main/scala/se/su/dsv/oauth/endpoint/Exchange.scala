@@ -33,7 +33,7 @@ class Exchange[F[_]]
 
   private def getCredentials(request: Request[F]): EitherT[F, ErrorResponse, ClientCredentials] = {
     request.headers.get(Authorization) match {
-      case Some(Authorization(BasicCredentials(BasicCredentials(username, password)))) =>
+      case Some(Authorization(BasicCredentials(username, password))) =>
         right(ClientCredentials(username, password))
       case _ =>
         left(AccessTokenRequest.invalidClient)
@@ -51,7 +51,7 @@ class Exchange[F[_]]
     }
   }
 
-  def service: HttpService[F] = HttpService[F] {
+  def service: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ POST -> Root =>
       val prg = for {
         accessTokenRequest <- AccessTokenRequest.fromRequest(request)

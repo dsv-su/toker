@@ -1,7 +1,8 @@
 package se.su.dsv
 
-import org.http4s.AttributeKey
+import cats.effect.IO
+import io.chrisdavenport.vault.Key
 
 package object oauth {
-  val RemoteUser: AttributeKey[String] = AttributeKey[String]
+  val RemoteUser: Key[String] = Key.newKey[IO, String].unsafeRunSync()
 }

@@ -95,18 +95,9 @@ object DatabaseBackend {
         .query[Payload]
   }
 
-  implicit val uriMeta: Meta[Uri] = Meta[String].xmap(
-    Uri.unsafeFromString,
-    _.renderString
-  )
+  implicit val uriMeta: Meta[Uri] = Meta[String].imap(Uri.unsafeFromString)(_.renderString)
 
-  implicit val spaceSeparated: Meta[Set[String]] = Meta[String].xmap(
-    _.split(' ').toSet,
-    _.mkString(" ")
-  )
+  implicit val spaceSeparated: Meta[Set[String]] = Meta[String].imap(_.split(' ').toSet)(_.mkString(" "))
 
-  implicit val uuidMeta: Meta[UUID] = Meta[String].xmap(
-    UUID.fromString,
-    _.toString
-  )
+  implicit val uuidMeta: Meta[UUID] = Meta[String].imap(UUID.fromString)(_.toString)
 }
