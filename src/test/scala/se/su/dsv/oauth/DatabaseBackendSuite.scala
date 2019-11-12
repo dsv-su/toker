@@ -1,15 +1,20 @@
 package se.su.dsv.oauth
 
-import doobie.imports._
-import doobie.scalatest.imports.QueryChecker
+import cats.effect.{ContextShift, IO}
+import doobie.scalatest.IOChecker
+import doobie.util.transactor.Transactor
 import org.flywaydb.core.Flyway
 import org.scalatest._
 import se.su.dsv.oauth.DatabaseBackend.queries
 
-class DatabaseBackendSuite extends FunSuite with Matchers with QueryChecker {
+import scala.concurrent.ExecutionContext
+
+class DatabaseBackendSuite extends FunSuite with Matchers with IOChecker {
+  implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+
   val databaseUrl = "jdbc:h2:mem:dbs;DB_CLOSE_DELAY=-1;MODE=MYSQL"
 
-  override val transactor = DriverManagerTransactor[IOLite]("org.h2.Driver", databaseUrl)
+  override val transactor: Transactor[IO] = Transactor.fromDriverManager[IO]("org.h2.Driver", databaseUrl)
 
   val flyway = new Flyway()
   flyway.setDataSource(databaseUrl, "", "")

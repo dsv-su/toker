@@ -1,29 +1,29 @@
 package se.su.dsv.oauth.endpoint
 
-import argonaut._, Argonaut._
+import argonaut._
+import Argonaut._
+import cats.data.OptionT
+import cats.effect.Sync
+import cats.syntax.all._
 import org.http4s._
 import org.http4s.argonaut._
 import org.http4s.dsl._
 import se.su.dsv.oauth.{Payload, Token}
 
-import scalaz.OptionT
-import scalaz.concurrent.Task
-import scalaz.syntax.monad._
-
-class Verify
+class Verify[F[_]]
 (
-  lookupToken: Token => OptionT[Task, Payload]
-)
+  lookupToken: Token => OptionT[F, Payload]
+)(implicit S: Sync[F]) extends Http4sDsl[F]
 {
 
-  def service: HttpService = HttpService {
+  def service: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ POST -> Root =>
       val prg = for {
-        uuid <- request.as[String].liftM[OptionT]
+        uuid <- OptionT.liftF(request.as[String])
         payload <- lookupToken(Token(uuid))
       } yield payload
 
-      prg.run.flatMap {
+      prg.value.flatMap {
         case Some(payload) => Ok(payload.asJson)
         case None => Forbidden()
       }

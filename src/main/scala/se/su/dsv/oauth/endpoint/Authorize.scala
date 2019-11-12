@@ -1,21 +1,22 @@
 package se.su.dsv.oauth.endpoint
 
+import cats.data.OptionT
+import cats.data.OptionT.{none, some}
+import cats.effect.Sync
+import cats.syntax.all._
 import org.http4s._
 import org.http4s.dsl._
+import org.http4s.headers.{Cookie, Location}
 import se.su.dsv.oauth._
 
-import scalaz.OptionT
-import scalaz.OptionT.{none, some}
-import scalaz.concurrent.Task
-
-class Authorize
+class Authorize[F[_]]
 (
-  lookupClient: String => OptionT[Task, Client],
-  generateToken: Payload => Task[GeneratedToken],
-  generateCode: (String, Option[Uri], Payload) => Task[Code]
-)
+  lookupClient: String => OptionT[F, Client],
+  generateToken: Payload => F[GeneratedToken],
+  generateCode: (String, Option[Uri], Payload) => F[Code]
+)(implicit S: Sync[F]) extends Http4sDsl[F]
 {
-  def validateRedirectUri(requestedRedirectUri: Option[Uri], configuredRedirectUri: Uri): OptionT[Task, Uri] = {
+  def validateRedirectUri(requestedRedirectUri: Option[Uri], configuredRedirectUri: Uri): OptionT[F, Uri] = {
     val redirectUri = requestedRedirectUri getOrElse configuredRedirectUri
     if (redirectUri == configuredRedirectUri)
       some(redirectUri)
@@ -23,17 +24,17 @@ class Authorize
       none
   }
 
-  def validateScopes(requestedScopes: Set[String], allowedScopes: Set[String]): OptionT[Task, Set[String]] = {
+  def validateScopes(requestedScopes: Set[String], allowedScopes: Set[String]): OptionT[F, Set[String]] = {
     if (requestedScopes.forall(allowedScopes))
-      some[Task, Set[String]](requestedScopes).filter(_.nonEmpty)
+      some[F](requestedScopes).filter(_.nonEmpty)
     else
       none
   }
 
-  def validateNonce(form: UrlForm, request: Request): OptionT[Task, Unit] = {
+  def validateNonce(form: UrlForm, request: Request[F]): OptionT[F, Unit] = {
     val formNonce = form.getFirst("nonce")
-    val cookieNonce = request.headers.get(headers.Cookie).flatMap(_.values.collectFirst {
-      case Cookie(name, content, _, _, _, _, _, _, _) if name == "nonce" => content
+    val cookieNonce = request.headers.get(Cookie).flatMap(_.values.collectFirst {
+      case RequestCookie(name, content) if name == "nonce" => content
     })
     if (formNonce.exists(s => cookieNonce.contains(s)))
       some(())
@@ -41,13 +42,13 @@ class Authorize
       none
   }
 
-  private def toPayload(request: Request): Payload =
-    Payload(request.attributes(RemoteUser))
+  private def toPayload(request: Request[F]): Payload =
+    Payload(request.attributes.lookup(RemoteUser).get)
 
-  def service: HttpService = HttpService {
+  def service: HttpRoutes[F] = HttpRoutes.of [F]{
     case request @ GET -> Root =>
       val response = for {
-        authorizationRequest <- OptionT(Task.now(AuthorizationRequest.fromRaw(request)))
+        authorizationRequest <- OptionT(Sync[F].pure(AuthorizationRequest.fromRaw(request)))
         client <- lookupClient(authorizationRequest.clientId)
         _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
         redirectUri <- validateRedirectUri(authorizationRequest.redirectUri, client.redirectUri)
@@ -56,7 +57,7 @@ class Authorize
           for {
             code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, toPayload(request))
             callback: Uri = redirectUri +*? code +?? ("state", authorizationRequest.state)
-            response <- SeeOther(callback)
+            response <- SeeOther(Location(callback))
           } yield response
         case ResponseType.Token =>
           for {
@@ -64,15 +65,15 @@ class Authorize
             callback: Uri = redirectUri.copy(
               fragment = Some(s"access_token=${token.token.token}&token_type=Bearer&expires_in=${token.duration.getSeconds}&state=${authorizationRequest.state.getOrElse("")}")
             )
-            response <- SeeOther(callback)
+            response <- SeeOther(Location(callback))
           } yield response
       }
-      response.run.flatMap(_ getOrElse Forbidden())
+      response.value.flatMap(_ getOrElse Forbidden())
 
     case request @ POST -> Root =>
       val response = for {
-        form <- EntityDecoder[UrlForm].decode(request, strict = true).toOption
-        authorizationRequest <- OptionT(Task.now(AuthorizationRequest.fromForm(form)))
+        form <- EntityDecoder[F, UrlForm].decode(request, strict = true).toOption
+        authorizationRequest <- OptionT(Sync[F].pure(AuthorizationRequest.fromForm(form)))
         client <- lookupClient(authorizationRequest.clientId)
         _ <- validateNonce(form, request)
         _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
@@ -82,7 +83,7 @@ class Authorize
           for {
             code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, toPayload(request))
             callback: Uri = redirectUri +*? code +?? ("state", authorizationRequest.state)
-            response <- SeeOther(callback)
+            response <- SeeOther(Location(callback))
           } yield response
         case ResponseType.Token =>
           for {
@@ -90,9 +91,9 @@ class Authorize
             callback: Uri = redirectUri.copy(
               fragment = Some(s"access_token=${token.token.token}&token_type=Bearer&expires_in=${token.duration.getSeconds}&state=${authorizationRequest.state.getOrElse("")}")
             )
-            response <- SeeOther(callback)
+            response <- SeeOther(Location(callback))
           } yield response
       }
-      response.run.flatMap(_ getOrElse Forbidden())
+      response.value.flatMap(_ getOrElse Forbidden())
   }
 }

@@ -1,12 +1,11 @@
 package se.su.dsv.oauth
 
 import argonaut._, Argonaut._
+import cats.data.EitherT
+import cats.effect.Sync
 
 import scala.collection.immutable.Set
 import org.http4s.{EntityDecoder, Request, Uri, UrlForm}
-
-import scalaz.{EitherT, \/}
-import scalaz.concurrent.Task
 
 sealed trait ResponseType
 object ResponseType {
@@ -22,7 +21,7 @@ final case class AuthorizationRequest private (
   state: Option[String]
 )
 object AuthorizationRequest {
-  def fromRaw(request: Request): Option[AuthorizationRequest] =
+  def fromRaw[F[_]](request: Request[F]): Option[AuthorizationRequest] =
     helper(request.params.get)
 
   def fromForm(form: UrlForm): Option[AuthorizationRequest] =
@@ -70,7 +69,7 @@ object AccessTokenRequest {
   val invalidClient: ErrorResponse = ErrorResponse.InvalidClient
   val invalidGrant: ErrorResponse = ErrorResponse.InvalidGrant
 
-  def  fromRequest(request: Request): EitherT[Task, ErrorResponse, AccessTokenRequest] = {
+  def  fromRequest[F[_]: Sync](request: Request[F]): EitherT[F, ErrorResponse, AccessTokenRequest] = {
     def getRequest(form: UrlForm): Option[AccessTokenRequest] = {
       for {
         grantType <- form.getFirst("grant_type")
@@ -80,14 +79,14 @@ object AccessTokenRequest {
       } yield AccessTokenRequest(code, redirectUri)
     }
     for {
-      form <- EntityDecoder[UrlForm]
+      form <- EntityDecoder[F, UrlForm]
         .decode(request, strict = true)
         .leftMap(_ => invalidRequest)
-      request <- EitherT(Task.now(getRequest(form) match {
+      request <- EitherT(Sync[F].pure(getRequest(form) match {
         case Some(accessTokenRequest) =>
-          \/.right(accessTokenRequest)
+          Right(accessTokenRequest)
         case None =>
-          \/.left(invalidRequest)
+          Left(invalidRequest)
       }))
     } yield request
   }
