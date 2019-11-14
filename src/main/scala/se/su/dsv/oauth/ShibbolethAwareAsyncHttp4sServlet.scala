@@ -16,9 +16,20 @@ class ShibbolethAwareAsyncHttp4sServlet[F[_]](
   extends AsyncHttp4sServlet[F](service, asyncTimeout, servletIo, serviceErrorHandler)
 {
   override protected def toRequest(req: HttpServletRequest): ParseResult[Request[F]] = {
-    super.toRequest(req) map {
-      _
-        .withAttribute(se.su.dsv.oauth.RemoteUser, req.getRemoteUser)
+    def getAttribute(attributeName: String) =
+      Option(req.getAttribute(attributeName).asInstanceOf[String])
+    super.toRequest(req) map { request =>
+      val entitlementAttribute = getAttribute("entitlement")
+        .toList
+        .flatMap(_.split(';').toList)
+      val a = request
+        .withAttribute(RemoteUser, req.getRemoteUser)
+        .withAttribute(EntitlementsKey, Entitlements(entitlementAttribute))
+      val b = getAttribute("mail")
+        .fold(a)(a.withAttribute(Mail, _))
+      val c = getAttribute("displayName")
+        .fold(b)(b.withAttribute(DisplayName, _))
+      c
     }
   }
 }

@@ -43,7 +43,12 @@ class Authorize[F[_]]
   }
 
   private def toPayload(request: Request[F]): Payload =
-    Payload(request.attributes.lookup(RemoteUser).get)
+    (for {
+      principal <- request.attributes.lookup(RemoteUser)
+      displayName = request.attributes.lookup(DisplayName)
+      mail = request.attributes.lookup(Mail)
+      entitlements = request.attributes.lookup(EntitlementsKey).getOrElse(Entitlements(List.empty))
+    } yield Payload(principal, displayName, mail, entitlements)).get
 
   def service: HttpRoutes[F] = HttpRoutes.of [F]{
     case request @ GET -> Root =>

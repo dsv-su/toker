@@ -68,8 +68,8 @@ object DatabaseBackend {
         .update
 
     def storeToken(uuid: UUID, payload: Payload, expires: Instant): Update0 =
-      sql"""INSERT INTO token (uuid, expires, payload)
-            VALUES ($uuid, $expires, $payload)
+      sql"""INSERT INTO token (uuid, expires, principal, display_name, mail, entitlements)
+            VALUES ($uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements})
          """
         .update
 
@@ -78,20 +78,20 @@ object DatabaseBackend {
         .update
 
     def storeCode(clientId: String, redirectUri: Option[Uri], uuid: UUID, payload: Payload, expires: Instant): Update0 =
-      sql"""INSERT INTO code (client_id, redirect_uri, uuid, expires, payload)
-            VALUES ($clientId, $redirectUri, $uuid, $expires, $payload)
+      sql"""INSERT INTO code (client_id, redirect_uri, uuid, expires, principal, display_name, mail, entitlements)
+            VALUES ($clientId, $redirectUri, $uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements})
          """
         .update
 
     def lookupCode(clientId: String, uuid: String, now: Instant): Query0[Code] =
-      sql"""SELECT redirect_uri, uuid, payload
+      sql"""SELECT redirect_uri, uuid, principal, display_name, mail, entitlements
             FROM code
             WHERE client_id = $clientId AND uuid = $uuid AND expires > $now
          """
         .query[Code]
 
     def getPayload(token: Token, now: Instant): Query0[Payload] =
-      sql"""SELECT payload FROM token WHERE uuid = $token AND expires > $now"""
+      sql"""SELECT principal, display_name, mail, entitlements FROM token WHERE uuid = $token AND expires > $now"""
         .query[Payload]
   }
 
@@ -100,4 +100,6 @@ object DatabaseBackend {
   implicit val spaceSeparated: Meta[Set[String]] = Meta[String].imap(_.split(' ').toSet)(_.mkString(" "))
 
   implicit val uuidMeta: Meta[UUID] = Meta[String].imap(UUID.fromString)(_.toString)
+
+  implicit val entitlementsMeta: Meta[Entitlements] = Meta[String].imap(scsv => Entitlements(scsv.split(';').toList))(_.values.mkString(";"))
 }
