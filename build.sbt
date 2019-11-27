@@ -16,6 +16,7 @@ libraryDependencies ++= Seq(
   http4s("dsl"),
   http4s("argonaut"),
   http4s("servlet"),
+  http4s("twirl"),
   "org.tpolecat" %% "doobie-core"      % "0.7.1",
   "org.tpolecat" %% "doobie-scalatest" % "0.7.1" % Test,
   "com.h2database" % "h2" % "1.4.193" % Test,
@@ -53,3 +54,18 @@ containerArgs in Jetty := Seq("--config", "jetty.xml")
 containerLibs in Jetty ++= Seq(
   "mysql" % "mysql-connector-java" % "5.1.40"
 )
+
+enablePlugins(SbtTwirl)
+
+TwirlKeys.templateImports := Seq() // required due to -Xfatal-warnings
+
+enablePlugins(BuildEnvironmentPlugin)
+
+Compile / unmanagedSourceDirectories ++= {
+  val environmentDirectories = buildEnv.value match {
+    case Production => Seq("production")
+    case Staging => Seq("staging")
+    case Development => Seq("staging", "development")
+  }
+  environmentDirectories.map(sourceDirectory.value / "environments" / _)
+}

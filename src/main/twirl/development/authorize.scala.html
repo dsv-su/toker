@@ -1,0 +1,34 @@
+@(params: Map[String, String])
+
+@html.dsv("Generate token") {
+    <form method="post" action="/authorize">
+        <label>
+            Principal (required):
+            <input type="text" name="principal" placeholder="rektor@@su.se">
+        </label>
+        <br>
+        <label>
+            Display name:
+            <input type="text" name="displayName">
+        </label>
+        <br>
+        <label>
+            Mail:
+            <input type="text" name="mail">
+        </label>
+        <br>
+        <label>
+            Entitlements:
+            <br>
+            <textarea name="entitlements" placeholder="staff&#10;gdpr" cols="50"></textarea>
+        </label>
+        <br>
+        <small>All entitlements are automatically prefixed with <code>urn:mace:swami.se:gmai:dsv-user:</code></small>
+        <br>
+        <button type="submit">Issue ticket</button>
+
+        @params.map { case (key, value) =>
+          <input type="hidden" name="@key" value="@value">
+        }
+    </form>
+}
