@@ -20,7 +20,12 @@ class Authorize[F[_]]
 
   def service: HttpRoutes[F] = HttpRoutes.of {
     case request @ GET -> Root =>
-      Ok(_root_.development.html.authorize(request.params))
+      validateDeveloperAccess(request).value flatMap {
+        case Some(()) =>
+          Ok(_root_.development.html.authorize(request.params))
+        case None =>
+          Forbidden()
+      }
     case request @ POST -> Root =>
       val response = for {
         _ <- validateDeveloperAccess(request)
