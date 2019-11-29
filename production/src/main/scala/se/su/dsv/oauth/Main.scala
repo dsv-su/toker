@@ -1,11 +1,11 @@
 package se.su.dsv.oauth
 
 import cats.effect.{ConcurrentEffect, ContextShift, IO}
-import javax.naming.InitialContext
-import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
-import javax.servlet.annotation.WebListener
-import javax.sql.DataSource
 import doobie.util.transactor.Transactor
+import javax.naming.InitialContext
+import javax.servlet.annotation.WebListener
+import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
+import javax.sql.DataSource
 import org.flywaydb.core.Flyway
 import org.http4s.HttpRoutes
 import se.su.dsv.oauth.endpoint._
