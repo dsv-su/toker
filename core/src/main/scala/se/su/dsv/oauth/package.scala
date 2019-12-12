@@ -9,5 +9,5 @@ package object oauth {
   val EntitlementsKey: Key[Entitlements] = Key.newKey[IO, Entitlements].unsafeRunSync()
   val Mail: Key[String] = Key.newKey[IO, String].unsafeRunSync()
 
-  val entitlementPrefix = "urn:mace:swami.se:gmai:dsv-user"
+  val entitlementPrefix = "urn:mace:swami.se:gmai"
 }
