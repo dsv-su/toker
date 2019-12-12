@@ -1,15 +1,24 @@
 package se.su.dsv.oauth.endpoint
 
-import cats.data.OptionT
+import cats.data.{EitherT, OptionT}
 import cats.data.OptionT.{none, some}
 import cats.effect.Sync
 import cats.syntax.all._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{Cookie, Location}
 import org.http4s.twirl._
-import org.http4s.{HttpRoutes, Request, RequestCookie, Uri, UrlForm}
+import org.http4s.{DecodeFailure, HttpRoutes, Request, RequestCookie, Uri, UrlForm}
 import se.su.dsv.oauth._
 import se.su.dsv.oauth.environment.developerEntitlement
+
+sealed trait AuthorizeError
+case object NotDeveloper extends AuthorizeError
+final case class BadInput(decodeFailure: DecodeFailure) extends AuthorizeError
+case object InvalidAuthorizationRequest extends AuthorizeError
+final case class NoSuchClient(clientId: String) extends AuthorizeError
+final case class InvalidScopes(requested: Set[String], allowed: Set[String]) extends AuthorizeError
+final case class InvalidRedirectUri(requested: Option[Uri], allowed: Uri) extends AuthorizeError
+case object MissingPrincipal extends AuthorizeError
 
 class Authorize[F[_]]
 (
@@ -29,14 +38,28 @@ class Authorize[F[_]]
     case request @ POST -> Root =>
       val response = for {
         _ <- validateDeveloperAccess(request)
-        form <- request.attemptAs[UrlForm].toOption
-        authorizationRequest <- AuthorizationRequest.fromForm(form).toOptionT
+            .toRight[AuthorizeError](NotDeveloper)
+        form <- request.attemptAs[UrlForm]
+            .leftMap(BadInput)
+        authorizationRequest <- AuthorizationRequest.fromForm(form)
+            .toOptionT
+            .toRight(InvalidAuthorizationRequest)
         client <- lookupClient(authorizationRequest.clientId)
-        _ <- validateNonce(form, request)
+            .toRight(NoSuchClient(authorizationRequest.clientId))
         _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
+            .toRight(InvalidScopes(
+              requested = authorizationRequest.scopes,
+              allowed = client.allowedScopes
+            ))
         redirectUri <- validateRedirectUri(authorizationRequest.redirectUri, client.redirectUri)
-        payload <- toPayload(request)
-        callbackUri <- OptionT.liftF(authorizationRequest.responseType match {
+            .toRight(InvalidRedirectUri(
+              requested = authorizationRequest.redirectUri,
+              allowed = client.redirectUri
+            ))
+        payload <- toPayload(form)
+            .toOptionT
+            .toRight(MissingPrincipal)
+        callbackUri <- EitherT.liftF[F, AuthorizeError, Uri](authorizationRequest.responseType match {
           case ResponseType.Code =>
             for {
               code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, payload)
@@ -56,8 +79,8 @@ class Authorize[F[_]]
         })
       } yield callbackUri
       response.value.flatMap {
-        case Some(callbackUri) => SeeOther(Location(callbackUri))
-        case None => Forbidden()
+        case Right(callbackUri) => SeeOther(Location(callbackUri))
+        case Left(error) => Forbidden(error.toString)
       }
   }
 
@@ -79,7 +102,7 @@ class Authorize[F[_]]
 
   def validateScopes(requestedScopes: Set[String], allowedScopes: Set[String]): OptionT[F, Set[String]] = {
     if (requestedScopes.forall(allowedScopes))
-      some[F](requestedScopes).filter(_.nonEmpty)
+      some[F](requestedScopes)
     else
       none
   }
@@ -95,10 +118,9 @@ class Authorize[F[_]]
       none
   }
 
-  private def toPayload(request: Request[F]): OptionT[F, Payload] = {
+  private def toPayload(form: UrlForm): Option[Payload] = {
     for {
-      form <- OptionT.liftF(request.as[UrlForm])
-      principal <- form.getFirst("principal").toOptionT
+      principal <- form.getFirst("principal")
     } yield Payload(
       principal,
       form.getFirst("displayName"),

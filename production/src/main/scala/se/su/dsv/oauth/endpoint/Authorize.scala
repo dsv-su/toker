@@ -26,7 +26,7 @@ class Authorize[F[_]]
 
   def validateScopes(requestedScopes: Set[String], allowedScopes: Set[String]): OptionT[F, Set[String]] = {
     if (requestedScopes.forall(allowedScopes))
-      some[F](requestedScopes).filter(_.nonEmpty)
+      some[F](requestedScopes)
     else
       none
   }
