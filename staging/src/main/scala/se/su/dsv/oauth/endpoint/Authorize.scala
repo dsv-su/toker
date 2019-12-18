@@ -126,7 +126,7 @@ class Authorize[F[_]]
       form.getFirst("displayName"),
       form.getFirst("mail"),
       Entitlements(form.getFirst("entitlements")
-        .fold(List.empty[String])(_.lines.toList.map(e => s"$entitlementPrefix:$e")))
+        .fold(List.empty[String])(_.linesIterator.toList.map(e => s"$entitlementPrefix:$e")))
     )
   }
 }
