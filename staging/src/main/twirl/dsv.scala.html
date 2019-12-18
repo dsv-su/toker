@@ -42,5 +42,20 @@
         <div class="clear-float"></div>
       </footer>
     </div>
+
+    <script type="text/javascript">
+            (function() {
+              // restore previous values
+              const form = document.forms[0];
+
+              const elements = form.querySelectorAll("input[type=text],textarea");
+
+              elements.forEach(elem => elem.value = sessionStorage.getItem(elem.name));
+
+              form.addEventListener("submit", function() {
+                elements.forEach(elem => sessionStorage.setItem(elem.name, elem.value));
+              });
+            })();
+    </script>
   </body>
 </html>
