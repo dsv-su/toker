@@ -29,6 +29,11 @@ class Main extends ServletContextListener {
       val tracer = JaegerConfiguration.fromEnv()
         .getTracer
       ctx.addFilter("tracing-filter", new TracingFilter(tracer))
+        .addMappingForUrlPatterns(null, true, "/*")
+      ctx.log(s"Tracing using $tracer")
+    }
+    else {
+      ctx.log("Not tracing")
     }
 
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
