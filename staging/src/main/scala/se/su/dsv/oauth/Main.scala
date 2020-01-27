@@ -2,6 +2,8 @@ package se.su.dsv.oauth
 
 import cats.effect.{ConcurrentEffect, ContextShift, IO}
 import doobie.util.transactor.Transactor
+import io.jaegertracing.{Configuration => JaegerConfiguration}
+import io.opentracing.contrib.web.servlet.filter.TracingFilter
 import javax.naming.InitialContext
 import javax.servlet.annotation.WebListener
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
@@ -21,6 +23,13 @@ class Main extends ServletContextListener {
     val flyway = new Flyway
     flyway.setDataSource(dataSource)
     flyway.migrate()
+
+    val serviceNameConfiguration = sys.props.get(JaegerConfiguration.JAEGER_SERVICE_NAME).orElse(sys.env.get(JaegerConfiguration.JAEGER_SERVICE_NAME))
+    if (serviceNameConfiguration.isDefined) {
+      val tracer = JaegerConfiguration.fromEnv()
+        .getTracer
+      ctx.addFilter("tracing-filter", new TracingFilter(tracer))
+    }
 
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     val connectEC = ExecutionContext.global
