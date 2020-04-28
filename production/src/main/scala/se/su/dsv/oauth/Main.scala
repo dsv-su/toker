@@ -50,9 +50,11 @@ class Main extends ServletContextListener {
       self: ServletContext,
       name: String,
       service: HttpRoutes[IO],
-      mapping: String = "/*")(implicit CE: ConcurrentEffect[IO]): ServletRegistration.Dynamic = {
-    val servlet = ShibbolethAwareAsyncHttp4sServlet(
+      blockingEc: ExecutionContext = ExecutionContext.global,
+      mapping: String = "/*")(implicit CE: ConcurrentEffect[IO], CS: ContextShift[IO]): ServletRegistration.Dynamic = {
+    val servlet = ShibbolethAwareHttp4sServlet(
       service = service,
+      blockingEc = blockingEc
     )
     val reg = self.addServlet(name, servlet)
     reg.setLoadOnStartup(1)
