@@ -1,20 +1,19 @@
 package se.su.dsv.oauth
 
-import cats.effect.{ConcurrentEffect, ContextShift}
+import cats.effect.ConcurrentEffect
 import javax.servlet.http.HttpServletRequest
 import org.http4s.server._
-import org.http4s.servlet.{BlockingHttp4sServlet, BlockingServletIo}
+import org.http4s.servlet.{AsyncHttp4sServlet, NonBlockingServletIo, ServletIo}
 import org.http4s.{HttpRoutes, ParseResult, Request}
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.Duration
 
-class ShibbolethAwareHttp4sServlet[F[_]](
+class ShibbolethAwareAsyncHttp4sServlet[F[_]](
     service: HttpRoutes[F],
     asyncTimeout: Duration = Duration.Inf,
-    servletIo: BlockingServletIo[F],
+    servletIo: ServletIo[F],
     serviceErrorHandler: ServiceErrorHandler[F])(implicit F: ConcurrentEffect[F])
-  extends BlockingHttp4sServlet[F](service, servletIo, serviceErrorHandler)
+  extends AsyncHttp4sServlet[F](service, asyncTimeout, servletIo, serviceErrorHandler)
 {
   override protected def toRequest(req: HttpServletRequest): ParseResult[Request[F]] = {
     def getAttribute(attributeName: String) =
@@ -35,15 +34,14 @@ class ShibbolethAwareHttp4sServlet[F[_]](
   }
 }
 
-object ShibbolethAwareHttp4sServlet {
-  def apply[F[_]: ConcurrentEffect: ContextShift](
+object ShibbolethAwareAsyncHttp4sServlet {
+  def apply[F[_]: ConcurrentEffect](
       service: HttpRoutes[F],
-      blockingEc: ExecutionContext,
-      asyncTimeout: Duration = Duration.Inf): ShibbolethAwareHttp4sServlet[F] =
-    new ShibbolethAwareHttp4sServlet[F](
+      asyncTimeout: Duration = Duration.Inf): ShibbolethAwareAsyncHttp4sServlet[F] =
+    new ShibbolethAwareAsyncHttp4sServlet[F](
       service,
       asyncTimeout,
-      BlockingServletIo[F](4096, blockingEc),
+      NonBlockingServletIo[F](4096),
       DefaultServiceErrorHandler
     )
 }
