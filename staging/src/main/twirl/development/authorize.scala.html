@@ -1,7 +1,7 @@
 @(params: Map[String, String])
 
 @html.dsv("Generate token") {
-    <form method="post" action="/authorize">
+    <form method="post" action="/authorize" data-save="authorize">
         <label>
             Principal (required):
             <input type="text" name="principal" placeholder="rektor@@su.se">

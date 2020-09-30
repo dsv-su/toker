@@ -46,15 +46,17 @@
     <script type="text/javascript">
             (function() {
               // restore previous values
-              const form = document.forms[0];
+              const forms = document.querySelectorAll("form[data-save]");
 
-              const elements = form.querySelectorAll("input[type=text],textarea");
+              forms.forEach(form => {
+                const elements = form.querySelectorAll("input[type=text],textarea");
 
-              elements.forEach(elem => elem.value = sessionStorage.getItem(elem.name));
+                elements.forEach(elem => elem.value = sessionStorage.getItem(form.dataset.save + "-" + elem.name));
 
-              form.addEventListener("submit", function() {
-                elements.forEach(elem => sessionStorage.setItem(elem.name, elem.value));
-              });
+                form.addEventListener("submit", function() {
+                  elements.forEach(elem => sessionStorage.setItem(form.dataset.save + "-" + elem.name, elem.value));
+                });
+              })
             })();
     </script>
   </body>
