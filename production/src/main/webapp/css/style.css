@@ -1,0 +1,137 @@
+@charset "utf-8";
+a {
+  color: #005b7f;
+}
+
+a:visited {
+  color: #7d7d7d;
+}
+
+a:hover {
+  color: black;
+}
+
+body {
+  font: 76%/1.6 Verdana, Arial, Helvetica, sans-serif;
+}
+
+/* This fixes padding within divs */
+div {
+  -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+  -moz-box-sizing: border-box;    /* Firefox, other Gecko */
+  box-sizing: border-box;         /* Opera/IE 8+ */
+}
+
+/* Fix for IE showing a blue border around link images*/
+a img {
+  border: none;
+}
+
+address {
+  font-style: normal;
+}
+
+/**
+ * Container styling
+ */
+#container {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 994px;
+}
+@media screen and (min-width: 1001px) {
+  #container {
+    background: url(/images/container-repeater.gif) repeat-y;
+    padding-right: 7px;
+    padding-left: 7px;
+  }
+}
+
+/*
+ * Header styling
+ */
+header {
+  background-color: #002e5f;
+  padding: 2% 2% 10px 2%;
+}
+#header-dsv {
+  float: left;
+  color: #fff;
+  font-family: Georgia, "Times New Roman", Times, serif;
+  font-size: 1.4em;
+  line-height: 1.2;
+  text-decoration: none;
+}
+#header-su {
+  float: right;
+}
+#header-dsv-text, #header-su-text {
+  display: none;
+}
+@media screen and (max-width: 615px) {
+  #header-dsv-logo, #header-su-logo {
+    display: none;
+  }
+  #header-dsv-text, #header-su-text {
+    float: none;
+    display: block;
+    width: 100%;
+  }
+}
+
+/**
+ * Main content
+ */
+main {
+  padding-left: 7px;
+  padding-right: 7px;
+}
+
+/**
+ * Footer styling
+ */
+footer {
+  line-height: 20px;
+  border-top: 1px solid #d2d7dc;
+  font-size: 10px;
+  margin: 4px 10px;
+  margin-top: 60px;
+  padding: 10px 11px 0 11px;
+}
+#footer b {
+  font-size: 12px;
+}
+#footer-left {
+    float: left;
+}
+
+#footer-right {
+    float: right;
+}
+@media screen and (max-width: 660px) {
+  footer {
+    background-color: #d3d3d3;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 4px 1em;
+  }
+  #footer-left {
+    width: 100%;
+  }
+  #footer-right {
+    float: left;
+  }
+  footer address b, footer address br {
+    display: none;
+  }
+}
+
+.clear-float {
+	display: block;
+	clear: both;
+	line-height: 0;
+	font-size: 0;
+	width: 1px;
+	height: 0px;
+	visibility: hidden;
+}
