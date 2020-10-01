@@ -1,0 +1,17 @@
+@import se.su.dsv.oauth.administration.Client
+
+@(clients: List[Client])
+
+@html.dsv("Administrate clients") {
+
+    <h2>Clients</h2>
+
+    <ul>
+        @clients.map { client =>
+            <li><a href="/admin/client/@client.id">@client.name</a></li>
+        }
+    </ul>
+
+    <a href="/admin/client">Register new client</a>
+
+}

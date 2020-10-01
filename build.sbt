@@ -52,8 +52,10 @@ lazy val toker = project.in(file("."))
   )
 
 lazy val core = project.in(file("core"))
+  .enablePlugins(SbtTwirl)
   .settings(
-    name := "core"
+    name := "core",
+    TwirlKeys.templateImports := Seq() // required due to -Xfatal-warnings
   )
 
 lazy val production = project.in(file("production"))

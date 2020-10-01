@@ -1,5 +1,6 @@
 package se.su.dsv.oauth
 
+import cats.data.{Kleisli, OptionT}
 import cats.effect.{ConcurrentEffect, ContextShift, IO}
 import doobie.util.transactor.Transactor
 import io.jaegertracing.{Configuration => JaegerConfiguration}
@@ -9,7 +10,8 @@ import javax.servlet.annotation.WebListener
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
 import javax.sql.DataSource
 import org.flywaydb.core.Flyway
-import org.http4s.HttpRoutes
+import org.http4s.{HttpRoutes, Request}
+import org.http4s.server.AuthMiddleware
 import se.su.dsv.oauth.endpoint._
 
 import scala.concurrent.ExecutionContext
@@ -39,8 +41,10 @@ class Main extends ServletContextListener {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     val connectEC = ExecutionContext.global
     val transactEC = ExecutionContext.global
+    val tx = Transactor.fromDataSource[IO](dataSource, connectEC, transactEC)
 
-    val backend = new DatabaseBackend(Transactor.fromDataSource[IO](dataSource, connectEC, transactEC))
+    val backend = new DatabaseBackend(tx)
+    val adminBackend = new administration.AdminDatabaseBackend(tx)
 
     mountService(ctx,
       name = "authorize",
@@ -56,6 +60,19 @@ class Main extends ServletContextListener {
       name = "verify",
       service = new Verify(backend.getPayload).service,
       mapping = "/verify")
+
+    val remoteUserAuthentication = AuthMiddleware(Kleisli[OptionT[IO, ?], Request[IO], String](
+      req => OptionT.fromOption(req.attributes.lookup(RemoteUser))))
+
+    mountService(ctx,
+      name = "administration",
+      service = remoteUserAuthentication(new Administration(
+        listClients = adminBackend.listClients,
+        lookupClient = adminBackend.lookupClient,
+        registerClient = adminBackend.registerClient,
+        updateClient = adminBackend.updateClient
+      ).service),
+      mapping = "/admin/*")
 
     ()
   }

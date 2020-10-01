@@ -1,0 +1,63 @@
+@import se.su.dsv.oauth.administration.ClientDetails
+
+@(client: ClientDetails)
+
+@html.dsv("Client administration") {
+
+    <h2>Clients</h2>
+
+    <h3>@client.name</h3>
+
+    <div id="current">
+        <dl>
+            <dt>Client id</dt>
+            <dd>@client.id</dd>
+
+            <dt>Client secret</dt>
+            <dd>@client.secret</dd>
+
+            <dt>Redirect URI</dt>
+            <dd>@client.redirectUri</dd>
+
+            <dt>Scopes</dt>
+            <dd>@client.scopes.mkString(", ")</dd>
+        </dl>
+        <a href="#" onclick="document.getElementById('current').style.display='none'; document.getElementById('edit').style.display='block';">Edit</a>
+    </div>
+
+    <div id="edit" style="display: none;">
+        <form action="/admin/client/@client.id" method="post">
+            <label>
+                Name
+                <input type="text" name="name" required value="@client.name" autocomplete="off">
+            </label>
+            <br>
+            <label>
+                Client id
+                <input type="text" readonly value="@client.id" size="36">
+            </label>
+            <br>
+            <label>
+                Client secret
+                <input type="text" name="secret" required minlength="32" maxlength="32" value="@client.secret" size="32" pattern="[a-zA-Z0-9]+" autocomplete="off">
+                <small>a-z A-Z 0-9, 32 characters</small>
+            </label>
+            <br>
+            <label>
+                Redirect URI
+                <input type="text" name="redirectUri" required value="@client.redirectUri" size="50" autocomplete="off">
+            </label>
+            <br>
+            <label>
+                Scopes
+                <br>
+                <textarea name="scopes" rows="5" cols="20" autocomplete="off">@client.scopes.mkString("\n")</textarea>
+            </label>
+            <br>
+            <button type="submit">Save</button>
+            <a href="#" onclick="document.getElementById('current').style.display='block'; document.getElementById('edit').style.display='none';">Cancel</a>
+        </form>
+    </div>
+
+    <a href="/admin">&larr; Back to client list</a>
+}
