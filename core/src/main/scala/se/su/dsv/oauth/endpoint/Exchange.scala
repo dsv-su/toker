@@ -8,7 +8,7 @@ import cats.syntax.all._
 import org.http4s._
 import org.http4s.argonaut._
 import org.http4s.dsl._
-import org.http4s.headers.Authorization
+import org.http4s.headers.{Authorization, `WWW-Authenticate`}
 import se.su.dsv.oauth.AccessTokenRequest.ErrorResponse
 import se.su.dsv.oauth._
 
@@ -54,8 +54,8 @@ class Exchange[F[_]]
   def service: HttpRoutes[F] = HttpRoutes.of[F] {
     case request @ POST -> Root =>
       val prg = for {
-        accessTokenRequest <- AccessTokenRequest.fromRequest(request)
         credentials <- getCredentials(request)
+        accessTokenRequest <- AccessTokenRequest.fromRequest(request)
         client <- lookupClient(credentials.clientId)
           .toRight(AccessTokenRequest.invalidClient)
         _ <- validateCredentials(credentials.secret, client.secret)
@@ -69,6 +69,7 @@ class Exchange[F[_]]
 
       prg.value.flatMap {
         case Right(tokenResponse) => Ok(tokenResponse.asJson)
+        case Left(AccessTokenRequest.invalidClient) => Unauthorized(`WWW-Authenticate`(Challenge("Basic", "toker")))
         case Left(error) => BadRequest(error.asJson)
       }
   }
