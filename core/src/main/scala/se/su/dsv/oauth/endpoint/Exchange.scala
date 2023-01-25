@@ -1,12 +1,11 @@
 package se.su.dsv.oauth.endpoint
 
-import argonaut._
-import Argonaut._
 import cats.data.{EitherT, OptionT}
-import cats.effect.Sync
+import cats.effect.Concurrent
 import cats.syntax.all._
+import io.circe.syntax._
 import org.http4s._
-import org.http4s.argonaut._
+import org.http4s.circe._
 import org.http4s.dsl._
 import org.http4s.headers.{Authorization, `WWW-Authenticate`}
 import se.su.dsv.oauth.AccessTokenRequest.ErrorResponse
@@ -17,12 +16,12 @@ class Exchange[F[_]]
   lookupClient: String => OptionT[F, Client],
   lookupCode: (String, String) => OptionT[F, Code],
   generateToken: Payload => F[GeneratedToken]
-)(implicit S: Sync[F]) extends Http4sDsl[F]
+)(implicit S: Concurrent[F]) extends Http4sDsl[F]
 {
   private def right[A](a: A): EitherT[F, ErrorResponse, A] =
-    EitherT.right(Sync[F].pure(a))
+    EitherT.right(Concurrent[F].pure(a))
   private def left[A](e: ErrorResponse): EitherT[F, ErrorResponse, A] =
-    EitherT.left(Sync[F].pure(e))
+    EitherT.left(Concurrent[F].pure(e))
 
   private def validateCredentials(providedSecret: String, clientSecret: String): EitherT[F, ErrorResponse, Unit] = {
     if (providedSecret == clientSecret)
@@ -32,7 +31,7 @@ class Exchange[F[_]]
   }
 
   private def getCredentials(request: Request[F]): EitherT[F, ErrorResponse, ClientCredentials] = {
-    request.headers.get(Authorization) match {
+    request.headers.get[Authorization] match {
       case Some(Authorization(BasicCredentials(username, password))) =>
         right(ClientCredentials(username, password))
       case _ =>

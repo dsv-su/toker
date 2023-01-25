@@ -8,6 +8,7 @@ import cats.effect.Sync
 import cats.syntax.all._
 import doobie._
 import doobie.implicits._
+import doobie.implicits.legacy.instant._
 import org.http4s.Uri
 
 import scala.collection.immutable.Set

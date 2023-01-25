@@ -2,25 +2,26 @@ ThisBuild / organization := "se.su.dsv"
 
 ThisBuild / version := "1.0"
 
-ThisBuild / scalaVersion := "2.12.10"
+ThisBuild / scalaVersion := "3.2.1"
 
-val http4sVersion = "0.20.13"
+val http4sVersion = "0.23.18"
 
-def http4s(module: String): ModuleID = "org.http4s" %% s"http4s-$module" % http4sVersion
+ThisBuild / libraryDependencySchemes += "org.http4s" %% "http4s-core" % "always"
+
+def http4s(module: String, version: String = http4sVersion): ModuleID = "org.http4s" %% s"http4s-$module" % version
 
 ThisBuild / libraryDependencies ++= Seq(
   "javax.servlet" % "javax.servlet-api" % "3.0.1" % "provided",
-  http4s("blaze-server"),
+  http4s("blaze-server", "0.23.13"),
   http4s("dsl"),
-  http4s("argonaut"),
-  http4s("servlet"),
-  http4s("twirl"),
-  "org.tpolecat" %% "doobie-core"      % "0.7.1",
-  "org.tpolecat" %% "doobie-scalatest" % "0.7.1" % Test,
+  http4s("circe"),
+  http4s("servlet", "0.23.13"),
+  http4s("twirl", "0.24.0-M1"),
+  "org.tpolecat" %% "doobie-core"      % "1.0.0-RC2",
+  "org.tpolecat" %% "doobie-scalatest" % "1.0.0-RC2" % Test,
   "com.h2database" % "h2" % "1.4.193" % Test,
   "org.slf4j" % "slf4j-simple" % "1.7.22",
-  "org.flywaydb" % "flyway-core" % "4.0.3",
-  compilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
+  "org.flywaydb" % "flyway-core" % "4.0.3"
 )
 
 ThisBuild / scalacOptions ++= Seq(
@@ -32,17 +33,7 @@ ThisBuild / scalacOptions ++= Seq(
   "-language:implicitConversions",
   "-unchecked",
   "-Xfatal-warnings",
-  "-Xlint",
-  "-Yno-adapted-args",
-  "-Ywarn-dead-code",        // N.B. doesn't work well with the ??? hole
-  "-Ywarn-numeric-widen",
-  "-Ywarn-value-discard",
-  "-Xfuture",
-  "-Ypartial-unification"
-  //"-Ywarn-unused-import",    // 2.11 only
 )
-
-ThisBuild / resolvers += Resolver.sonatypeRepo("releases")
 
 lazy val toker = project.in(file("."))
   .dependsOn(core, production, staging, dev)
@@ -87,7 +78,7 @@ lazy val dev = project.in(file("dev"))
     containerLibs in Jetty ++= Seq("mysql" % "mysql-connector-java" % "5.1.40"),
     webappPostProcess := {
       webappDir =>
-        val stagingWebapp = (staging / sourceDirectory in webappPrepare in Compile).value / "webapp"
+        val stagingWebapp = (staging / Compile / webappPrepare / sourceDirectory).value / "webapp"
         IO.copyDirectory(stagingWebapp, webappDir)
     }
   )

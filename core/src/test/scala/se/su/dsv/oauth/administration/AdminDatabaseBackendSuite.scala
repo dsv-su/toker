@@ -1,16 +1,16 @@
 package se.su.dsv.oauth.administration
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import doobie.scalatest.IOChecker
 import doobie.util.transactor.Transactor
 import org.flywaydb.core.Flyway
 import org.scalatest._
+import org.scalatest.funsuite.AnyFunSuite
 import se.su.dsv.oauth.administration.AdminDatabaseBackend.queries
 
 import scala.concurrent.ExecutionContext
 
-class AdminDatabaseBackendSuite extends FunSuite with Matchers with IOChecker {
-  implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+class AdminDatabaseBackendSuite extends AnyFunSuite with IOChecker {
 
   val databaseUrl = "jdbc:h2:mem:adminbackend;DB_CLOSE_DELAY=-1;MODE=MYSQL"
 

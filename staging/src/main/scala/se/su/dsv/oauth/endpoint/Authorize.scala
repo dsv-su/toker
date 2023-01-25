@@ -2,13 +2,13 @@ package se.su.dsv.oauth.endpoint
 
 import cats.data.{EitherT, OptionT}
 import cats.data.OptionT.{none, some}
-import cats.effect.Sync
-import cats.syntax.all._
+import cats.effect.Concurrent
+import cats.syntax.all.*
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.{Cookie, Location}
-import org.http4s.twirl._
+import org.http4s.twirl.*
 import org.http4s.{DecodeFailure, HttpRoutes, Request, RequestCookie, Uri, UrlForm}
-import se.su.dsv.oauth._
+import se.su.dsv.oauth.*
 import se.su.dsv.oauth.environment.developerEntitlement
 
 sealed trait AuthorizeError
@@ -25,7 +25,7 @@ class Authorize[F[_]]
   lookupClient: String => OptionT[F, Client],
   generateToken: Payload => F[GeneratedToken],
   generateCode: (String, Option[Uri], Payload) => F[Code]
-)(implicit S: Sync[F]) extends Http4sDsl[F] {
+)(implicit S: Concurrent[F]) extends Http4sDsl[F] {
 
   def service: HttpRoutes[F] = HttpRoutes.of {
     case request @ GET -> Root =>
@@ -40,7 +40,7 @@ class Authorize[F[_]]
         _ <- validateDeveloperAccess(request)
             .toRight[AuthorizeError](NotDeveloper)
         form <- request.attemptAs[UrlForm]
-            .leftMap(BadInput)
+            .leftMap(BadInput.apply)
         authorizationRequest <- AuthorizationRequest.fromForm(form)
             .toOptionT
             .toRight(InvalidAuthorizationRequest)
@@ -109,7 +109,7 @@ class Authorize[F[_]]
 
   def validateNonce(form: UrlForm, request: Request[F]): OptionT[F, Unit] = {
     val formNonce = form.getFirst("nonce")
-    val cookieNonce = request.headers.get(Cookie).flatMap(_.values.collectFirst {
+    val cookieNonce = request.headers.get[Cookie].flatMap(_.values.collectFirst {
       case RequestCookie(name, content) if name == "nonce" => content
     })
     if (formNonce.exists(s => cookieNonce.contains(s)))

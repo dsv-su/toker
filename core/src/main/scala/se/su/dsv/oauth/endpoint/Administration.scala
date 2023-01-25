@@ -1,6 +1,6 @@
 package se.su.dsv.oauth.endpoint
 
-import cats.effect.Sync
+import cats.effect.Concurrent
 import cats.syntax.all._
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.Location
@@ -16,7 +16,7 @@ class Administration[F[_]]
   , registerClient: (Principal, String, String, Set[String]) => F[Client]
   , updateClient: (Principal, String, String, String, String, Set[String])  => F[ClientDetails]
   )
-  (implicit A: Sync[F])
+  (implicit A: Concurrent[F])
   extends Http4sDsl[F]
 {
   def service: AuthedRoutes[String, F] = AuthedRoutes.of[Principal, F] {

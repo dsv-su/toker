@@ -1,16 +1,19 @@
 package se.su.dsv.oauth.endpoint
 
 import java.util.UUID
-
-import argonaut._
 import cats.data.OptionT
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+import io.circe.Decoder
 import org.http4s._
-import org.http4s.argonaut._
+import org.http4s.circe._
+import org.http4s.syntax.literals._
 import org.scalatest._
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpec
 import se.su.dsv.oauth.{Entitlements, Payload}
 
-class VerifySuite extends WordSpec with Matchers with Inside with OptionValues {
+class VerifySuite extends AnyWordSpec with Matchers with Inside with OptionValues {
   "Verify endpoint" when {
     "no valid tokens exist" should {
       "respond with forbidden" in {
@@ -22,7 +25,7 @@ class VerifySuite extends WordSpec with Matchers with Inside with OptionValues {
           body = fs2.Stream(UUID.randomUUID().toString.getBytes: _*).covary[IO]
         ))
 
-        inside(response.value.unsafeRunSync) {
+        inside(response.value.unsafeRunSync()) {
           case Some(value) => value.status should be(Status.Forbidden)
         }
       }
@@ -50,10 +53,10 @@ class VerifySuite extends WordSpec with Matchers with Inside with OptionValues {
 
   }
 
-  implicit val decodePayload: DecodeJson[Payload] = DecodeJson(c => for {
-    principal <- (c --\ "principal").as[String]
-    name <- (c --\ "name").as[Option[String]]
-    mail <- (c --\ "mail").as[Option[String]]
-    entitlements <- (c --\ "entitlements").as[List[String]]
+  implicit val decodePayload: Decoder[Payload] = Decoder.instance(c => for {
+    principal <- (c `downField` "principal").as[String]
+    name <- (c `downField` "name").as[Option[String]]
+    mail <- (c `downField` "mail").as[Option[String]]
+    entitlements <- (c `downField` "entitlements").as[List[String]]
   } yield Payload(principal, name, mail, Entitlements(entitlements)))
 }

@@ -1,8 +1,8 @@
 package se.su.dsv.oauth
 
-import argonaut._, Argonaut._
 import cats.data.EitherT
-import cats.effect.Sync
+import cats.effect.Concurrent
+import io.circe.*
 
 import scala.collection.immutable.Set
 import org.http4s.{EntityDecoder, Request, Uri, UrlForm}
@@ -54,14 +54,14 @@ object AccessTokenRequest {
     case object InvalidClient extends ErrorResponse
     case object InvalidGrant extends ErrorResponse
 
-    implicit val encodeJson: EncodeJson[ErrorResponse] =
-      EncodeJson { error =>
+    implicit val encodeJson: Encoder[ErrorResponse] =
+      Encoder { error =>
         val errorString = error match {
           case InvalidRequest => "invalid_request"
           case InvalidClient => "invalid_client"
           case InvalidGrant => "invalid_grant"
         }
-        jSingleObject("error", jString(errorString))
+        Json.obj(("error", Json.fromString(errorString)))
       }
   }
 
@@ -69,7 +69,7 @@ object AccessTokenRequest {
   val invalidClient: ErrorResponse = ErrorResponse.InvalidClient
   val invalidGrant: ErrorResponse = ErrorResponse.InvalidGrant
 
-  def  fromRequest[F[_]: Sync](request: Request[F]): EitherT[F, ErrorResponse, AccessTokenRequest] = {
+  def  fromRequest[F[_]: Concurrent](request: Request[F]): EitherT[F, ErrorResponse, AccessTokenRequest] = {
     def getRequest(form: UrlForm): Option[AccessTokenRequest] = {
       for {
         grantType <- form.getFirst("grant_type")
@@ -82,7 +82,7 @@ object AccessTokenRequest {
       form <- EntityDecoder[F, UrlForm]
         .decode(request, strict = true)
         .leftMap(_ => invalidRequest)
-      request <- EitherT(Sync[F].pure(getRequest(form) match {
+      request <- EitherT(Concurrent[F].pure(getRequest(form) match {
         case Some(accessTokenRequest) =>
           Right(accessTokenRequest)
         case None =>

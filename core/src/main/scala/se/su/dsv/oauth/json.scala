@@ -2,9 +2,13 @@ package se.su.dsv.oauth
 
 import java.time.Duration
 
-import argonaut.CodecJson
+import io.circe._
 
 object json {
-  implicit val durationCodecJson: CodecJson[Duration] =
-    CodecJson.derived[Long].xmap(Duration.ofSeconds)(_.getSeconds)
+  import io.circe.Encoder._
+  import io.circe.Decoder._
+  implicit val durationCodecJson: Encoder[Duration] =
+    Encoder[Long].contramap[Duration](_.getSeconds)
+  implicit val durationDecoder: Decoder[Duration] =
+    Decoder[Long].map(Duration.ofSeconds)
 }

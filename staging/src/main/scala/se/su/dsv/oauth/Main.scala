@@ -1,10 +1,13 @@
 package se.su.dsv.oauth
 
 import cats.data.{Kleisli, OptionT}
-import cats.effect.{ConcurrentEffect, ContextShift, IO}
+import cats.effect.std.Dispatcher
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import doobie.util.transactor.Transactor
-import io.jaegertracing.{Configuration => JaegerConfiguration}
+import io.jaegertracing.Configuration as JaegerConfiguration
 import io.opentracing.contrib.web.servlet.filter.TracingFilter
+
 import javax.naming.InitialContext
 import javax.servlet.annotation.WebListener
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
@@ -12,12 +15,15 @@ import javax.sql.DataSource
 import org.flywaydb.core.Flyway
 import org.http4s.{HttpRoutes, Request}
 import org.http4s.server.AuthMiddleware
-import se.su.dsv.oauth.endpoint._
+import se.su.dsv.oauth.endpoint.*
 
 import scala.concurrent.ExecutionContext
 
 @WebListener
 class Main extends ServletContextListener {
+  var deallocate: IO[Unit] = IO.pure(())
+  var dispatcher: Dispatcher[IO] = _
+
   override def contextInitialized(sce: ServletContextEvent): Unit = {
     val ctx = sce.getServletContext
     val dataSource = InitialContext.doLookup[DataSource]("java:comp/env/jdbc/oauthDS")
@@ -38,13 +44,15 @@ class Main extends ServletContextListener {
       ctx.log("Not tracing")
     }
 
-    implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     val connectEC = ExecutionContext.global
-    val transactEC = ExecutionContext.global
-    val tx = Transactor.fromDataSource[IO](dataSource, connectEC, transactEC)
+    val tx = Transactor.fromDataSource[IO](dataSource, connectEC)
 
     val backend = new DatabaseBackend(tx)
     val adminBackend = new administration.AdminDatabaseBackend(tx)
+
+    val (dispatcher, deallocate) = Dispatcher.parallel[IO].allocated.unsafeRunSync()
+    this.dispatcher = dispatcher
+    this.deallocate = deallocate
 
     mountService(ctx,
       name = "authorize",
@@ -61,7 +69,7 @@ class Main extends ServletContextListener {
       service = new Verify(backend.getPayload).service,
       mapping = "/verify")
 
-    val remoteUserAuthentication = AuthMiddleware(Kleisli[OptionT[IO, ?], Request[IO], String](
+    val remoteUserAuthentication = AuthMiddleware[IO, String](Kleisli(
       req => OptionT.fromOption(req.attributes.lookup(RemoteUser))))
 
     mountService(ctx,
@@ -81,9 +89,10 @@ class Main extends ServletContextListener {
       self: ServletContext,
       name: String,
       service: HttpRoutes[IO],
-      mapping: String = "/*")(implicit CE: ConcurrentEffect[IO]): ServletRegistration.Dynamic = {
+      mapping: String = "/*"): ServletRegistration.Dynamic = {
     val servlet = ShibbolethAwareAsyncHttp4sServlet(
       service = service,
+      dispatcher = dispatcher
     )
     val reg = self.addServlet(name, servlet)
     reg.setLoadOnStartup(1)
@@ -92,5 +101,7 @@ class Main extends ServletContextListener {
     reg
   }
 
-  override def contextDestroyed(sce: ServletContextEvent): Unit = ()
+  override def contextDestroyed(sce: ServletContextEvent): Unit = {
+    deallocate.unsafeRunSync()
+  }
 }

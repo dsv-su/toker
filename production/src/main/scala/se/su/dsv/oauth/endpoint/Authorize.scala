@@ -2,7 +2,7 @@ package se.su.dsv.oauth.endpoint
 
 import cats.data.OptionT
 import cats.data.OptionT.{none, some}
-import cats.effect.Sync
+import cats.effect.Concurrent
 import cats.syntax.all._
 import org.http4s._
 import org.http4s.dsl._
@@ -14,7 +14,7 @@ class Authorize[F[_]]
   lookupClient: String => OptionT[F, Client],
   generateToken: Payload => F[GeneratedToken],
   generateCode: (String, Option[Uri], Payload) => F[Code]
-)(implicit S: Sync[F]) extends Http4sDsl[F]
+)(implicit S: Concurrent[F]) extends Http4sDsl[F]
 {
   def validateRedirectUri(requestedRedirectUri: Option[Uri], configuredRedirectUri: Uri): OptionT[F, Uri] = {
     val redirectUri = requestedRedirectUri getOrElse configuredRedirectUri
@@ -33,7 +33,7 @@ class Authorize[F[_]]
 
   def validateNonce(form: UrlForm, request: Request[F]): OptionT[F, Unit] = {
     val formNonce = form.getFirst("nonce")
-    val cookieNonce = request.headers.get(Cookie).flatMap(_.values.collectFirst {
+    val cookieNonce = request.headers.get[Cookie].flatMap(_.values.collectFirst {
       case RequestCookie(name, content) if name == "nonce" => content
     })
     if (formNonce.exists(s => cookieNonce.contains(s)))
@@ -53,7 +53,7 @@ class Authorize[F[_]]
   def service: HttpRoutes[F] = HttpRoutes.of [F]{
     case request @ GET -> Root =>
       val response = for {
-        authorizationRequest <- OptionT(Sync[F].pure(AuthorizationRequest.fromRaw(request)))
+        authorizationRequest <- OptionT(Concurrent[F].pure(AuthorizationRequest.fromRaw(request)))
         client <- lookupClient(authorizationRequest.clientId)
         _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
         redirectUri <- validateRedirectUri(authorizationRequest.redirectUri, client.redirectUri)
@@ -78,7 +78,7 @@ class Authorize[F[_]]
     case request @ POST -> Root =>
       val response = for {
         form <- EntityDecoder[F, UrlForm].decode(request, strict = true).toOption
-        authorizationRequest <- OptionT(Sync[F].pure(AuthorizationRequest.fromForm(form)))
+        authorizationRequest <- OptionT(Concurrent[F].pure(AuthorizationRequest.fromForm(form)))
         client <- lookupClient(authorizationRequest.clientId)
         _ <- validateNonce(form, request)
         _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
