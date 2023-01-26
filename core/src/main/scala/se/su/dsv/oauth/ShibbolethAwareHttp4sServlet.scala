@@ -5,20 +5,17 @@ import cats.effect.std.Dispatcher
 
 import javax.servlet.http.HttpServletRequest
 import org.http4s.server._
-import org.http4s.servlet.{AsyncHttp4sServlet, NonBlockingServletIo, ServletIo}
+import org.http4s.servlet.{BlockingHttp4sServlet, BlockingServletIo, ServletIo}
 import org.http4s.{HttpRoutes, ParseResult, Request}
 
-import scala.annotation.nowarn
 import scala.concurrent.duration.Duration
 
-@nowarn("cat=deprecation")
-class ShibbolethAwareAsyncHttp4sServlet[F[_]](
+class ShibbolethAwareHttp4sServlet[F[_]](
     service: HttpRoutes[F],
-    asyncTimeout: Duration = Duration.Inf,
-    servletIo: ServletIo[F],
+    servletIo: BlockingServletIo[F],
     serviceErrorHandler: ServiceErrorHandler[F],
     dispatcher: Dispatcher[F])(implicit F: Async[F])
-  extends AsyncHttp4sServlet[F](service.orNotFound, asyncTimeout, servletIo, serviceErrorHandler, dispatcher)
+  extends BlockingHttp4sServlet[F](service.orNotFound, servletIo, serviceErrorHandler, dispatcher)
 {
   override protected def toRequest(req: HttpServletRequest): ParseResult[Request[F]] = {
     def getAttribute(attributeName: String) =
@@ -39,15 +36,13 @@ class ShibbolethAwareAsyncHttp4sServlet[F[_]](
   }
 }
 
-object ShibbolethAwareAsyncHttp4sServlet {
+object ShibbolethAwareHttp4sServlet {
   def apply[F[_]: Async](
       service: HttpRoutes[F],
-      asyncTimeout: Duration = Duration.Inf,
-      dispatcher: Dispatcher[F]): ShibbolethAwareAsyncHttp4sServlet[F] =
-    new ShibbolethAwareAsyncHttp4sServlet[F](
+      dispatcher: Dispatcher[F]): ShibbolethAwareHttp4sServlet[F] =
+    new ShibbolethAwareHttp4sServlet[F](
       service,
-      asyncTimeout,
-      NonBlockingServletIo[F](4096),
+      BlockingServletIo[F](4096),
       DefaultServiceErrorHandler,
       dispatcher
     )

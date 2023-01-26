@@ -90,7 +90,7 @@ class Main extends ServletContextListener {
       name: String,
       service: HttpRoutes[IO],
       mapping: String = "/*"): ServletRegistration.Dynamic = {
-    val servlet = ShibbolethAwareAsyncHttp4sServlet(
+    val servlet = ShibbolethAwareHttp4sServlet(
       service = service,
       dispatcher = dispatcher
     )
