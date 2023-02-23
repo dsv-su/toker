@@ -9,29 +9,15 @@ import org.http4s.dsl._
 import org.http4s.headers.{Cookie, Location}
 import se.su.dsv.oauth._
 
-class Authorize[F[_]]
+class Authorize[F[_] : Concurrent]
 (
   lookupClient: String => OptionT[F, Client],
   generateToken: Payload => F[GeneratedToken],
   generateCode: (String, Option[Uri], Payload) => F[Code]
-)(implicit S: Concurrent[F]) extends Http4sDsl[F]
+) extends AbstractAuthorize[F](lookupClient, generateToken, generateCode)
 {
-  def validateRedirectUri(requestedRedirectUri: Option[Uri], configuredRedirectUri: Uri): OptionT[F, Uri] = {
-    val redirectUri = requestedRedirectUri getOrElse configuredRedirectUri
-    if (redirectUri == configuredRedirectUri)
-      some(redirectUri)
-    else
-      none
-  }
 
-  def validateScopes(requestedScopes: Set[String], allowedScopes: Set[String]): OptionT[F, Set[String]] = {
-    if (requestedScopes.forall(allowedScopes))
-      some[F](requestedScopes)
-    else
-      none
-  }
-
-  def validateNonce(form: UrlForm, request: Request[F]): OptionT[F, Unit] = {
+  private def validateNonce(form: UrlForm, request: Request[F]): OptionT[F, Unit] = {
     val formNonce = form.getFirst("nonce")
     val cookieNonce = request.headers.get[Cookie].flatMap(_.values.collectFirst {
       case RequestCookie(name, content) if name == "nonce" => content
@@ -54,51 +40,19 @@ class Authorize[F[_]]
     case request @ GET -> Root =>
       val response = for {
         authorizationRequest <- OptionT(Concurrent[F].pure(AuthorizationRequest.fromRaw(request)))
-        client <- lookupClient(authorizationRequest.clientId)
-        _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
-        redirectUri <- validateRedirectUri(authorizationRequest.redirectUri, client.redirectUri)
-      } yield authorizationRequest.responseType match {
-        case ResponseType.Code =>
-          for {
-            code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, toPayload(request))
-            callback: Uri = redirectUri +*? code +?? ("state", authorizationRequest.state)
-            response <- SeeOther(Location(callback))
-          } yield response
-        case ResponseType.Token =>
-          for {
-            token <- generateToken(toPayload(request))
-            callback: Uri = redirectUri.copy(
-              fragment = Some(s"access_token=${token.token.token}&token_type=Bearer&expires_in=${token.duration.getSeconds}&state=${authorizationRequest.state.getOrElse("")}")
-            )
-            response <- SeeOther(Location(callback))
-          } yield response
-      }
-      response.value.flatMap(_ getOrElse Forbidden())
+        payload = toPayload(request)
+        response <- OptionT.liftF(authorize(authorizationRequest, payload))
+      } yield response
+      response.foldF(Forbidden())(_.pure)
 
     case request @ POST -> Root =>
       val response = for {
         form <- EntityDecoder[F, UrlForm].decode(request, strict = true).toOption
         authorizationRequest <- OptionT(Concurrent[F].pure(AuthorizationRequest.fromForm(form)))
-        client <- lookupClient(authorizationRequest.clientId)
         _ <- validateNonce(form, request)
-        _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
-        redirectUri <- validateRedirectUri(authorizationRequest.redirectUri, client.redirectUri)
-      } yield authorizationRequest.responseType match {
-        case ResponseType.Code =>
-          for {
-            code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, toPayload(request))
-            callback: Uri = redirectUri +*? code +?? ("state", authorizationRequest.state)
-            response <- SeeOther(Location(callback))
-          } yield response
-        case ResponseType.Token =>
-          for {
-            token <- generateToken(toPayload(request))
-            callback: Uri = redirectUri.copy(
-              fragment = Some(s"access_token=${token.token.token}&token_type=Bearer&expires_in=${token.duration.getSeconds}&state=${authorizationRequest.state.getOrElse("")}")
-            )
-            response <- SeeOther(Location(callback))
-          } yield response
-      }
-      response.value.flatMap(_ getOrElse Forbidden())
+        payload = toPayload(request)
+        response <- OptionT.liftF(authorize(authorizationRequest, payload))
+      } yield response
+      response.foldF(Forbidden())(_.pure)
   }
 }
