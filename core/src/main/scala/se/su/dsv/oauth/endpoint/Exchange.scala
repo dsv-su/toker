@@ -11,17 +11,17 @@ import org.http4s.headers.{Authorization, `WWW-Authenticate`}
 import se.su.dsv.oauth.AccessTokenRequest.ErrorResponse
 import se.su.dsv.oauth._
 
-class Exchange[F[_]]
+class Exchange[F[_] : Concurrent]
 (
   lookupClient: String => OptionT[F, Client],
   lookupCode: (String, String) => OptionT[F, Code],
   generateToken: Payload => F[GeneratedToken]
-)(implicit S: Concurrent[F]) extends Http4sDsl[F]
+) extends Http4sDsl[F]
 {
   private def right[A](a: A): EitherT[F, ErrorResponse, A] =
-    EitherT.right(Concurrent[F].pure(a))
+    EitherT.rightT(a)
   private def left[A](e: ErrorResponse): EitherT[F, ErrorResponse, A] =
-    EitherT.left(Concurrent[F].pure(e))
+    EitherT.leftT(e)
 
   private def validateCredentials(providedSecret: String, clientSecret: String): EitherT[F, ErrorResponse, Unit] = {
     if (providedSecret == clientSecret)

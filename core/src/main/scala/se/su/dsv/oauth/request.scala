@@ -82,12 +82,7 @@ object AccessTokenRequest {
       form <- EntityDecoder[F, UrlForm]
         .decode(request, strict = true)
         .leftMap(_ => invalidRequest)
-      request <- EitherT(Concurrent[F].pure(getRequest(form) match {
-        case Some(accessTokenRequest) =>
-          Right(accessTokenRequest)
-        case None =>
-          Left(invalidRequest)
-      }))
+      request <- EitherT.fromEither(getRequest(form).toRight(invalidRequest))
     } yield request
   }
 }
