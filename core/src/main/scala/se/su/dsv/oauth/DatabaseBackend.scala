@@ -2,14 +2,14 @@ package se.su.dsv.oauth
 
 import java.time.{Duration, Instant}
 import java.util.UUID
-
 import cats.data.OptionT
 import cats.effect.Sync
-import cats.syntax.all._
-import doobie._
-import doobie.implicits._
-import doobie.implicits.legacy.instant._
+import cats.syntax.all.*
+import doobie.*
+import doobie.implicits.*
+import doobie.implicits.legacy.instant.*
 import org.http4s.Uri
+import se.su.dsv.oauth.endpoint.Introspection
 
 import scala.collection.immutable.Set
 
@@ -56,10 +56,26 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
       now <- S.delay(Instant.now())
       payload <- queries.getPayload(token, now).option.transact(xa)
     } yield payload)
+
+  def introspect(token: Token): F[Introspection] =
+    for {
+      tokenDetails <- queries.getTokenDetails(token.token).option.transact(xa)
+    } yield tokenDetails match {
+      case None =>
+        Introspection.Inactive
+      case Some(TokenDetails(expires, principal)) =>
+        Introspection.Active(principal, expires)
+    }
 }
 
 object DatabaseBackend {
+  case class TokenDetails(expires: Instant, principal: String)
+
   object queries {
+    def getTokenDetails(token: String): Query0[TokenDetails] =
+      sql"""SELECT expires, principal FROM token WHERE uuid = $token"""
+        .query[TokenDetails]
+
     def lookupClient(clientId: String): Query0[Client] =
       sql"""SELECT name, secret, scopes, redirect_uri FROM client WHERE uuid = $clientId"""
         .query[Client]

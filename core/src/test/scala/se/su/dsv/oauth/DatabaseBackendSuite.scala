@@ -26,4 +26,5 @@ class DatabaseBackendSuite extends AnyFunSuite with IOChecker {
   test("store code")           { check(queries.storeCode(null, null, null, Payload(null, null, null, null), null)) }
   test("lookup code")          { check(queries.lookupCode(null, null, null)) }
   test("get payload")          { check(queries.getPayload(null, null)) }
+  test("introspect token")     { check(queries.getTokenDetails(null)) }
 }

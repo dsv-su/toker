@@ -68,6 +68,11 @@ class Main extends ServletContextListener {
       name = "verify",
       service = new Verify(backend.getPayload).service,
       mapping = "/verify")
+    
+    mountService(ctx,
+      name = "introspect",
+      service = new Introspect(backend.introspect).service,
+      mapping = "/introspect")
 
     val remoteUserAuthentication = AuthMiddleware[IO, String](Kleisli(
       req => OptionT.fromOption(req.attributes.lookup(RemoteUser))))
