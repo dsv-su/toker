@@ -62,10 +62,6 @@ lazy val staging = project.in(file("staging"))
   .enablePlugins(SbtTwirl)
   .settings(
     name := "staging",
-    libraryDependencies ++= Seq(
-      "io.opentracing.contrib" % "opentracing-web-servlet-filter" % "0.3.0",
-      "io.jaegertracing" % "jaeger-client" % "1.1.0"
-    ),
     TwirlKeys.templateImports := Seq() // required due to -Xfatal-warnings
   )
 

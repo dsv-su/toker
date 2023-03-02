@@ -5,8 +5,6 @@ import cats.effect.std.Dispatcher
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import doobie.util.transactor.Transactor
-import io.jaegertracing.Configuration as JaegerConfiguration
-import io.opentracing.contrib.web.servlet.filter.TracingFilter
 
 import javax.naming.InitialContext
 import javax.servlet.annotation.WebListener
@@ -31,18 +29,6 @@ class Main extends ServletContextListener {
     val flyway = new Flyway
     flyway.setDataSource(dataSource)
     flyway.migrate()
-
-    val serviceNameConfiguration = sys.props.get(JaegerConfiguration.JAEGER_SERVICE_NAME).orElse(sys.env.get(JaegerConfiguration.JAEGER_SERVICE_NAME))
-    if (serviceNameConfiguration.isDefined) {
-      val tracer = JaegerConfiguration.fromEnv()
-        .getTracer
-      ctx.addFilter("tracing-filter", new TracingFilter(tracer))
-        .addMappingForUrlPatterns(null, true, "/*")
-      ctx.log(s"Tracing using $tracer")
-    }
-    else {
-      ctx.log("Not tracing")
-    }
 
     val connectEC = ExecutionContext.global
     val tx = Transactor.fromDataSource[IO](dataSource, connectEC)
