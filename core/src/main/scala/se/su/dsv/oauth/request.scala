@@ -10,7 +10,6 @@ import org.http4s.{EntityDecoder, Request, Uri, UrlForm}
 sealed trait ResponseType
 object ResponseType {
   case object Code extends ResponseType
-  case object Token extends ResponseType
 }
 
 final case class AuthorizationRequest private (
@@ -31,7 +30,6 @@ object AuthorizationRequest {
     for {
       responseType <- getParam("response_type").flatMap {
         case "code" => Some(ResponseType.Code)
-        case "token" => Some(ResponseType.Token)
         case _ => None
       }
       clientId <- getParam("client_id")

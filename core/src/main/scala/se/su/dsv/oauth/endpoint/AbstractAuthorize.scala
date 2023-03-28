@@ -16,7 +16,6 @@ case class InvalidRedirectUri(requested: Option[Uri], allowed: Uri) extends Auth
 
 class AbstractAuthorize[F[_]]
 (lookupClient: String => OptionT[F, Client],
- generateToken: Payload => F[GeneratedToken],
  generateCode: (String, Option[Uri], Payload) => F[Code])
 (using F: Concurrent[F])
   extends Http4sDsl[F] {
@@ -42,18 +41,6 @@ class AbstractAuthorize[F[_]]
           for {
             code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, payload)
           } yield redirectUri +*? code +?? ("state", authorizationRequest.state)
-        case ResponseType.Token =>
-          generateToken(payload) map { token =>
-            val parameters = Map(
-              "access_token" -> token.token.token,
-              "token_type" -> "Bearer",
-              "expires_in" -> String.valueOf(token.duration.getSeconds),
-              "state" -> authorizationRequest.state.getOrElse("")
-            )
-            redirectUri.copy(
-              fragment = Some(parameters.foldLeft("") { case (s, (key, value)) => s"$s&$key=$value" })
-            )
-          }
       }
     } yield SeeOther(Location(callbackUri))
     response.flatten.recoverWith {
