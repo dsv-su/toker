@@ -26,8 +26,10 @@ class Main extends ServletContextListener {
     val ctx = sce.getServletContext
     val dataSource = InitialContext.doLookup[DataSource]("java:comp/env/jdbc/oauthDS")
 
-    val flyway = new Flyway
-    flyway.setDataSource(dataSource)
+    val flyway = Flyway.configure()
+      .dataSource(dataSource)
+      .table("schema_version")
+      .load()
     flyway.migrate()
 
     val connectEC = ExecutionContext.global

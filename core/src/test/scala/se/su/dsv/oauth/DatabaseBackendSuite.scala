@@ -15,8 +15,9 @@ class DatabaseBackendSuite extends AnyFunSuite with IOChecker {
 
   override val transactor: Transactor[IO] = Transactor.fromDriverManager[IO]("org.h2.Driver", databaseUrl)
 
-  val flyway = new Flyway()
-  flyway.setDataSource(databaseUrl, "", "")
+  val flyway = Flyway.configure()
+    .dataSource(databaseUrl, "", "")
+    .load()
   flyway.migrate()
 
   test("lookup client")        { check(queries.lookupClient(null)) }

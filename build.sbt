@@ -19,9 +19,10 @@ ThisBuild / libraryDependencies ++= Seq(
   http4s("twirl", "0.24.0-M1"),
   "org.tpolecat" %% "doobie-core"      % "1.0.0-RC2",
   "org.tpolecat" %% "doobie-scalatest" % "1.0.0-RC2" % Test,
-  "com.h2database" % "h2" % "1.4.193" % Test,
+  "com.h2database" % "h2" % "2.1.214" % Test,
   "org.slf4j" % "slf4j-simple" % "1.7.22",
-  "org.flywaydb" % "flyway-core" % "4.0.3"
+  "org.flywaydb" % "flyway-core" % "9.16.0",
+  "org.flywaydb" % "flyway-mysql" % "9.16.0"
 )
 
 ThisBuild / scalacOptions ++= Seq(
