@@ -9,32 +9,35 @@ import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.Location
 import se.su.dsv.oauth.{AuthorizationRequest, Client, Code, GeneratedToken, Payload, ResponseType}
 
-sealed trait AuthorizationRequestError
+sealed trait AuthorizationRequestError extends RuntimeException
 case class NoSuchClient(str: String) extends AuthorizationRequestError
 case class InvalidScopes(requested: Set[String], allowed: Set[String]) extends AuthorizationRequestError
 case class InvalidRedirectUri(requested: Option[Uri], allowed: Uri) extends AuthorizationRequestError
 
-class AbstractAuthorize[F[_] : Concurrent]
+class AbstractAuthorize[F[_]]
 (lookupClient: String => OptionT[F, Client],
  generateToken: Payload => F[GeneratedToken],
  generateCode: (String, Option[Uri], Payload) => F[Code])
+(using F: Concurrent[F])
   extends Http4sDsl[F] {
 
   def authorize(authorizationRequest: AuthorizationRequest, payload: Payload): F[Response[F]] = {
     val response = for {
       client <- lookupClient(authorizationRequest.clientId)
-        .toRight(NoSuchClient(authorizationRequest.clientId))
-      _ <- validateScopes(authorizationRequest.scopes, client.allowedScopes)
-        .toRight[AuthorizationRequestError](InvalidScopes(
+        .getOrRaise(NoSuchClient(authorizationRequest.clientId))
+      _ <- F.raiseUnless(authorizationRequest.scopes.forall(client.allowedScopes))(
+        InvalidScopes(
           requested = authorizationRequest.scopes,
           allowed = client.allowedScopes
         ))
-      redirectUri <- validateRedirectUri(authorizationRequest.redirectUri, client.redirectUri)
-        .toRight(InvalidRedirectUri(
+      redirectUri <-
+        if authorizationRequest.redirectUri.forall(_ == client.redirectUri)
+        then F.pure(client.redirectUri)
+        else F.raiseError(InvalidRedirectUri(
           requested = authorizationRequest.redirectUri,
           allowed = client.redirectUri
         ))
-      callbackUri <- EitherT.liftF(authorizationRequest.responseType match {
+      callbackUri <- authorizationRequest.responseType match {
         case ResponseType.Code =>
           for {
             code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, payload)
@@ -51,25 +54,10 @@ class AbstractAuthorize[F[_] : Concurrent]
               fragment = Some(parameters.foldLeft("") { case (s, (key, value)) => s"$s&$key=$value" })
             )
           }
-      })
-    } yield callbackUri
-    response.foldF(
-      error => Forbidden(error.toString),
-      uri => SeeOther(Location(uri)))
-  }
-
-  private def validateScopes(requestedScopes: Set[String], allowedScopes: Set[String]): OptionT[F, Set[String]] = {
-    if (requestedScopes.forall(allowedScopes))
-      some(requestedScopes)
-    else
-      none
-  }
-
-  def validateRedirectUri(requestedRedirectUri: Option[Uri], configuredRedirectUri: Uri): OptionT[F, Uri] = {
-    val redirectUri = requestedRedirectUri getOrElse configuredRedirectUri
-    if (redirectUri == configuredRedirectUri)
-      some(redirectUri)
-    else
-      none
+      }
+    } yield SeeOther(Location(callbackUri))
+    response.flatten.recoverWith {
+      case error: AuthorizationRequestError => Forbidden(error.toString)
+    }
   }
 }
