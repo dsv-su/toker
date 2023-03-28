@@ -54,7 +54,7 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
   def getPayload(token: Token): OptionT[F, Payload] =
     OptionT(for {
       now <- S.delay(Instant.now())
-      payload <- queries.getPayload(token, now).option.transact(xa)
+      payload <- queries.getPayload(token.token, now).option.transact(xa)
     } yield payload)
 
   def introspect(token: Token): F[Introspection] =
@@ -107,7 +107,7 @@ object DatabaseBackend {
          """
         .query[Code]
 
-    def getPayload(token: Token, now: Instant): Query0[Payload] =
+    def getPayload(token: String, now: Instant): Query0[Payload] =
       sql"""SELECT principal, display_name, mail, entitlements FROM token WHERE uuid = $token AND expires > $now"""
         .query[Payload]
   }
