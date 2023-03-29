@@ -13,6 +13,7 @@ sealed trait AuthorizationRequestError extends RuntimeException
 case class NoSuchClient(str: String) extends AuthorizationRequestError
 case class InvalidScopes(requested: Set[String], allowed: Set[String]) extends AuthorizationRequestError
 case class InvalidRedirectUri(requested: Option[Uri], allowed: Uri) extends AuthorizationRequestError
+case object InvalidRequest extends AuthorizationRequestError
 
 class AbstractAuthorize[F[_]]
 (lookupClient: String => OptionT[F, Client],
@@ -24,6 +25,7 @@ class AbstractAuthorize[F[_]]
     val response = for {
       client <- lookupClient(authorizationRequest.clientId)
         .getOrRaise(NoSuchClient(authorizationRequest.clientId))
+      _ <- F.raiseWhen(client.isPublic && authorizationRequest.proofKey.isEmpty)(InvalidRequest)
       _ <- F.raiseUnless(authorizationRequest.scopes.forall(client.allowedScopes))(
         InvalidScopes(
           requested = authorizationRequest.scopes,

@@ -10,6 +10,8 @@ sealed trait Client {
     case _: Client.Public => false
     case _: Client.Confidential => true
   }
+  
+  def isPublic: Boolean = !isConfidential
 
   def allowedScopes: Set[String]
 
