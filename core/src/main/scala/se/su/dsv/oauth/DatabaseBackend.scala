@@ -34,14 +34,18 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
       } yield ()).transact(xa)
     } yield GeneratedToken(Token(uuid.toString), TokenDuration)
 
-  def generateCode(clientId: String, redirectUri: Option[Uri], payload: Payload): F[Code] =
+  def generateCode(clientId: String, redirectUri: Option[Uri], payload: Payload, proofKey: Option[ProofKey]): F[Code] =
     for {
       uuid <- S.delay(UUID.randomUUID())
       now <- S.delay(Instant.now())
       expiration = now.plus(Duration.ofMinutes(1))
       _ <- (for {
         _ <- queries.purgeExpiredCodes(now).run
-        _ <- queries.storeCode(clientId, redirectUri, uuid, payload, expiration).run
+        cc = proofKey.map {
+          case ProofKey.Plain(challenge) => (challenge, "plain")
+          case ProofKey.Sha256(challenge) => (challenge, "sha256")
+        }
+        _ <- queries.storeCode(clientId, redirectUri, uuid, payload, expiration, cc.map(_._1), cc.map(_._2)).run
       } yield ()).transact(xa)
     } yield Code(redirectUri, uuid, payload)
 
@@ -94,9 +98,9 @@ object DatabaseBackend {
       sql"""DELETE FROM code WHERE expires < $now"""
         .update
 
-    def storeCode(clientId: String, redirectUri: Option[Uri], uuid: UUID, payload: Payload, expires: Instant): Update0 =
-      sql"""INSERT INTO code (client_id, redirect_uri, uuid, expires, principal, display_name, mail, entitlements)
-            VALUES ($clientId, $redirectUri, $uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements})
+    def storeCode(clientId: String, redirectUri: Option[Uri], uuid: UUID, payload: Payload, expires: Instant, codeChallenge: Option[String], codeChallengeMethod: Option[String]): Update0 =
+      sql"""INSERT INTO code (client_id, redirect_uri, uuid, expires, principal, display_name, mail, entitlements, code_challenge, code_challenge_method)
+            VALUES ($clientId, $redirectUri, $uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements}, $codeChallenge, $codeChallengeMethod)
          """
         .update
 

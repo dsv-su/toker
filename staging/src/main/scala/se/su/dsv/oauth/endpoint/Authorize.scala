@@ -20,7 +20,7 @@ case object MissingPrincipal extends AuthorizeError
 class Authorize[F[_] : Concurrent]
 (
   lookupClient: String => OptionT[F, Client],
-  generateCode: (String, Option[Uri], Payload) => F[Code]
+  generateCode: (String, Option[Uri], Payload, Option[ProofKey]) => F[Code]
 )extends AbstractAuthorize[F](lookupClient, generateCode) {
 
   def service: HttpRoutes[F] = HttpRoutes.of {

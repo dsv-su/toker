@@ -7,7 +7,7 @@ import cats.syntax.all.*
 import org.http4s.{Response, Uri}
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.Location
-import se.su.dsv.oauth.{AuthorizationRequest, Client, Code, GeneratedToken, Payload, ResponseType}
+import se.su.dsv.oauth.{AuthorizationRequest, Client, Code, GeneratedToken, Payload, ProofKey, ResponseType}
 
 sealed trait AuthorizationRequestError extends RuntimeException
 case class NoSuchClient(str: String) extends AuthorizationRequestError
@@ -16,7 +16,7 @@ case class InvalidRedirectUri(requested: Option[Uri], allowed: Uri) extends Auth
 
 class AbstractAuthorize[F[_]]
 (lookupClient: String => OptionT[F, Client],
- generateCode: (String, Option[Uri], Payload) => F[Code])
+ generateCode: (String, Option[Uri], Payload, Option[ProofKey]) => F[Code])
 (using F: Concurrent[F])
   extends Http4sDsl[F] {
 
@@ -39,7 +39,7 @@ class AbstractAuthorize[F[_]]
       callbackUri <- authorizationRequest.responseType match {
         case ResponseType.Code =>
           for {
-            code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, payload)
+            code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, payload, authorizationRequest.proofKey)
           } yield redirectUri +*? code +?? ("state", authorizationRequest.state)
       }
     } yield SeeOther(Location(callbackUri))

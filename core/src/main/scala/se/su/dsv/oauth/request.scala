@@ -1,5 +1,6 @@
 package se.su.dsv.oauth
 
+import cats.syntax.all._
 import cats.data.EitherT
 import cats.effect.Concurrent
 import io.circe.*
@@ -17,7 +18,8 @@ final case class AuthorizationRequest private (
   clientId: String,
   redirectUri: Option[Uri],
   scopes: Set[String],
-  state: Option[String]
+  state: Option[String],
+  proofKey: Option[ProofKey]
 )
 object AuthorizationRequest {
   def fromRaw[F[_]](request: Request[F]): Option[AuthorizationRequest] =
@@ -33,11 +35,32 @@ object AuthorizationRequest {
         case _ => None
       }
       clientId <- getParam("client_id")
+      codeChallenge = (getParam("code_challenge"), Some(getParam("code_challenge_method"))).flatMapN(ProofKey.parse)
       redirectUri = getParam("redirect_uri").flatMap(Uri.fromString(_).toOption)
       scope = getParam("scope").map(_.split(' ').toSet).getOrElse(Set.empty)
       state = getParam("state")
     } yield {
-      AuthorizationRequest(responseType, clientId, redirectUri, scope, state)
+      AuthorizationRequest(responseType, clientId, redirectUri, scope, state, codeChallenge)
+    }
+}
+
+sealed trait ProofKey
+object ProofKey {
+  // Values from RFC 7636 (section 3 and 4.1)
+  private val Base64_NoPadding_Sha256_Length = 43
+  private val ChallengeMinLength = 43
+  private val ChallengeMaxLength = 128
+  
+  final case class Plain(challenge: String) extends ProofKey
+  final case class Sha256(challenge: String) extends ProofKey
+
+  def parse(challenge: String, method: Option[String]): Option[ProofKey] =
+    method match {
+      case None | Some("plain") if challenge.length >= ChallengeMinLength && challenge.length <= ChallengeMaxLength =>
+        Some(Plain(challenge))
+      case Some("S256") if challenge.length == Base64_NoPadding_Sha256_Length =>
+        Some(Sha256(challenge))
+      case _ => None
     }
 }
 
