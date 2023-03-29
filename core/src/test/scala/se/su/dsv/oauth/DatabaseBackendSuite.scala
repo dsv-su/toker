@@ -24,7 +24,7 @@ class DatabaseBackendSuite extends AnyFunSuite with IOChecker {
   test("purge expired tokens") { check(queries.purgeExpiredTokens(null)) }
   test("store token")          { check(queries.storeToken(null, Payload(null, null, null, null), null)) }
   test("purge expired codes")  { check(queries.purgeExpiredCodes(null)) }
-  test("store code")           { check(queries.storeCode(null, null, null, Payload(null, null, null, null), null, null, null)) }
+  test("store code")           { check(queries.storeCode(null, null, null, Payload(null, null, null, null), null, null)) }
   test("lookup code")          { check(queries.lookupCode(null, null, null)) }
   test("get payload")          { check(queries.getPayload(null, null)) }
   test("introspect token")     { check(queries.getTokenDetails(null)) }

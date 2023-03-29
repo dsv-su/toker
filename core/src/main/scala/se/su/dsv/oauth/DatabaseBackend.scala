@@ -49,28 +49,15 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
       expiration = now.plus(Duration.ofMinutes(1))
       _ <- (for {
         _ <- queries.purgeExpiredCodes(now).run
-        cc = proofKey.map {
-          case ProofKey.Plain(challenge) => (challenge, "plain")
-          case ProofKey.Sha256(challenge) => (challenge, "sha256")
-        }
-        _ <- queries.storeCode(clientId, redirectUri, uuid, payload, expiration, cc.map(_._1), cc.map(_._2)).run
+        _ <- queries.storeCode(clientId, redirectUri, uuid, payload, expiration, proofKey).run
       } yield ()).transact(xa)
     } yield Code(redirectUri, uuid, payload, proofKey)
 
   def lookupCode(clientId: String, uuidString: String): OptionT[F, Code] =
     OptionT(for {
       now <- S.delay(Instant.now())
-      codeRow <- queries.lookupCode(clientId, uuidString, now).option.transact(xa)
-    } yield {
-      codeRow.map({ case CodeRow(redirectUri, uuid, payload, codeChallenge) =>
-        val proofKey = codeChallenge.map({ case CodeChallenge(challenge, method) =>
-          if method == "sha256"
-          then ProofKey.Sha256(challenge)
-          else ProofKey.Plain(challenge)
-        })
-        Code(redirectUri, uuid, payload, proofKey)
-      })
-    })
+      code <- queries.lookupCode(clientId, uuidString, now).option.transact(xa)
+    } yield code)
 
   def getPayload(token: Token): OptionT[F, Payload] =
     OptionT(for {
@@ -91,10 +78,6 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 
 object DatabaseBackend {
   case class TokenDetails(expires: Instant, principal: String)
-
-  case class CodeRow(redirectUri: Option[Uri], uuid: UUID, payload: Payload, codeChallenge: Option[CodeChallenge])
-
-  case class CodeChallenge(challenge: String, method: String)
 
   case class ClientRow(name: String, secret: Option[String], scopes: Set[String], redirectUri: Uri)
 
@@ -121,18 +104,18 @@ object DatabaseBackend {
       sql"""DELETE FROM code WHERE expires < $now"""
         .update
 
-    def storeCode(clientId: String, redirectUri: Option[Uri], uuid: UUID, payload: Payload, expires: Instant, codeChallenge: Option[String], codeChallengeMethod: Option[String]): Update0 =
-      sql"""INSERT INTO code (client_id, redirect_uri, uuid, expires, principal, display_name, mail, entitlements, code_challenge, code_challenge_method)
-            VALUES ($clientId, $redirectUri, $uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements}, $codeChallenge, $codeChallengeMethod)
+    def storeCode(clientId: String, redirectUri: Option[Uri], uuid: UUID, payload: Payload, expires: Instant, proofKey: Option[ProofKey]): Update0 =
+      sql"""INSERT INTO code (client_id, redirect_uri, uuid, expires, principal, display_name, mail, entitlements, code_challenge)
+            VALUES ($clientId, $redirectUri, $uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements}, $proofKey)
          """
         .update
 
-    def lookupCode(clientId: String, uuid: String, now: Instant): Query0[CodeRow] =
-      sql"""SELECT redirect_uri, uuid, principal, display_name, mail, entitlements, code_challenge, code_challenge_method
+    def lookupCode(clientId: String, uuid: String, now: Instant): Query0[Code] =
+      sql"""SELECT redirect_uri, uuid, principal, display_name, mail, entitlements, code_challenge
             FROM code
             WHERE client_id = $clientId AND uuid = $uuid AND expires > $now
          """
-        .query[CodeRow]
+        .query[Code]
 
     def getPayload(token: String, now: Instant): Query0[Payload] =
       sql"""SELECT principal, display_name, mail, entitlements FROM token WHERE uuid = $token AND expires > $now"""
@@ -146,4 +129,13 @@ object DatabaseBackend {
   implicit val uuidMeta: Meta[UUID] = Meta[String].imap(UUID.fromString)(_.toString)
 
   implicit val entitlementsMeta: Meta[Entitlements] = Meta[String].imap(scsv => Entitlements(scsv.split(';').toList))(_.values.mkString(";"))
+
+  implicit val proofKeyMeta: Meta[ProofKey] = Meta[String]
+    .imap(_.split(':') match {
+      case Array("plain", challenge) => ProofKey.Plain(challenge)
+      case Array("sha256", challenge) => ProofKey.Sha256(challenge)
+    })({
+      case ProofKey.Plain(challenge) => s"plain:$challenge"
+      case ProofKey.Sha256(challenge) => s"sha256:$challenge"
+    })
 }
