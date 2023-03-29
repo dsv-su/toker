@@ -89,7 +89,7 @@ class Exchange[F[_] : Concurrent]
         val challengeHash = Base64.getUrlDecoder.decode(challenge)
         val digest = java.security.MessageDigest.getInstance("SHA-256")
         val codeHash = digest.digest(code.getBytes(StandardCharsets.UTF_8))
-        if challengeHash == codeHash then
+        if java.util.Arrays.equals(challengeHash, codeHash) then
           EitherT.rightT(())
         else
           EitherT.leftT(AccessTokenRequest.invalidGrant)

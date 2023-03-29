@@ -33,11 +33,14 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
       val plainProofKey = "plain-proof-key"
       val codeWithPlainPKCE = Code(None, UUID.randomUUID(), payload, Some(ProofKey.Plain(plainProofKey)))
 
+      val sha256CodeVerifier = "averylongstringthatwillbehashedwithsha256"
+      val codeWithSha256PKCE = Code(None, UUID.randomUUID(), payload, Some(ProofKey.Sha256("Je2tyc_cm4NjBaZHTJDcwD2uNtSD-yQSaJX0tUMRdqg")))
+
       val token = GeneratedToken(Token("token"), Duration.ofHours(1))
 
       val clients = Map[String, (Client, List[Code])](
         confidentialClient.name -> (confidentialClient, List(codeWithoutRedirectWithoutPKCE, codeWithRedirectWithoutPKCE, codeWithPlainPKCE)),
-        publicClient.name -> (publicClient, List(codeWithPlainPKCE, codeWithoutRedirectWithoutPKCE)))
+        publicClient.name -> (publicClient, List(codeWithPlainPKCE, codeWithoutRedirectWithoutPKCE, codeWithSha256PKCE)))
 
       val exchange = new Exchange[IO](
         clientId => OptionT.fromOption(clients.get(clientId).map(_._1)),
@@ -126,6 +129,19 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
         val response = exchange.run(request).unsafeRunSync()
 
         response.status should be(Status.BadRequest)
+      }
+
+      "work with sha-256 PKCE" in {
+        val request: Request[IO] = Request(method = Method.POST)
+          .putHeaders(Authorization(BasicCredentials(publicClient.name, "")))
+          .withEntity(UrlForm(
+            ("grant_type", "authorization_code"),
+            ("code", codeWithSha256PKCE.uuid.toString),
+            ("code_verifier", sha256CodeVerifier)))
+
+        val response = exchange.run(request).unsafeRunSync()
+
+        response.status should be(Status.Ok)
       }
     }
   }
