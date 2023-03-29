@@ -31,7 +31,7 @@ class Authorize[F[_]]
     case request @ GET -> Root =>
       validateDeveloperAccess(request).value flatMap {
         case Some(()) =>
-          Ok(_root_.development.html.authorize(request.params))
+          Ok(_root_.development.html.authorize(request.params, request.attributes))
         case None =>
           Forbidden()
       }

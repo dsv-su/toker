@@ -1,6 +1,46 @@
-@(params: Map[String, String])
+@import se.su.dsv.oauth.*
+
+@(params: Map[String, String], attributes: org.typelevel.vault.Vault)
 
 @html.dsv("Generate token") {
+    <h1>Issue token</h1>
+    <p>
+        Define the contents of the token. This is a feature of the test server, in production you will only ever
+        get a token in your name.
+    </p>
+    <h2>Your real token</h2>
+    <form method="post" action="/authorize">
+        <label>
+            Principal:
+            <input type="text" name="principal" value="@attributes.lookup(RemoteUser).getOrElse("")" readonly>
+        </label>
+        <br>
+        <label>
+            Display name:
+            <input type="text" name="displayName" value="@attributes.lookup(DisplayName).getOrElse("")" readonly>
+        </label>
+        <br>
+        <label>
+            Mail:
+            <input type="text" name="mail" value="@attributes.lookup(Mail).getOrElse("")" readonly>
+        </label>
+        <br>
+        <label>
+            Entitlements:
+            <br>
+            <textarea name="entitlements" cols="50" rows="5" readonly>@attributes.lookup(EntitlementsKey).toList.flatMap(_.values).map(_.substring(entitlementPrefix.length + 1)).mkString("\n")</textarea>
+        </label>
+        <br>
+        <button type="submit">Issue ticket</button>
+
+        @params.map { case (key, value) =>
+            <input type="hidden" name="@key" value="@value">
+        }
+    </form>
+    <hr>
+
+    <h2>Custom token</h2>
+
     <form method="post" action="/authorize" data-save="authorize">
         <label>
             Principal (required):

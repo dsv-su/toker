@@ -135,3 +135,6 @@ footer {
 	height: 0px;
 	visibility: hidden;
 }
+input[readonly], textarea[readonly] {
+  background-color: lightgrey;
+}
