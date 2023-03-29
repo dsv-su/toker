@@ -47,13 +47,22 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
         }
         _ <- queries.storeCode(clientId, redirectUri, uuid, payload, expiration, cc.map(_._1), cc.map(_._2)).run
       } yield ()).transact(xa)
-    } yield Code(redirectUri, uuid, payload)
+    } yield Code(redirectUri, uuid, payload, proofKey)
 
   def lookupCode(clientId: String, uuidString: String): OptionT[F, Code] =
     OptionT(for {
       now <- S.delay(Instant.now())
-      code <- queries.lookupCode(clientId, uuidString, now).option.transact(xa)
-    } yield code)
+      codeRow <- queries.lookupCode(clientId, uuidString, now).option.transact(xa)
+    } yield {
+      codeRow.map({ case CodeRow(redirectUri, uuid, payload, codeChallenge) =>
+        val proofKey = codeChallenge.map({ case CodeChallenge(challenge, method) =>
+          if method == "sha256"
+          then ProofKey.Sha256(challenge)
+          else ProofKey.Plain(challenge)
+        })
+        Code(redirectUri, uuid, payload, proofKey)
+      })
+    })
 
   def getPayload(token: Token): OptionT[F, Payload] =
     OptionT(for {
@@ -74,6 +83,8 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 
 object DatabaseBackend {
   case class TokenDetails(expires: Instant, principal: String)
+  case class CodeRow(redirectUri: Option[Uri], uuid: UUID, payload: Payload, codeChallenge: Option[CodeChallenge])
+  case class CodeChallenge(challenge: String, method: String)
 
   object queries {
     def getTokenDetails(token: String): Query0[TokenDetails] =
@@ -104,12 +115,12 @@ object DatabaseBackend {
          """
         .update
 
-    def lookupCode(clientId: String, uuid: String, now: Instant): Query0[Code] =
-      sql"""SELECT redirect_uri, uuid, principal, display_name, mail, entitlements
+    def lookupCode(clientId: String, uuid: String, now: Instant): Query0[CodeRow] =
+      sql"""SELECT redirect_uri, uuid, principal, display_name, mail, entitlements, code_challenge, code_challenge_method
             FROM code
             WHERE client_id = $clientId AND uuid = $uuid AND expires > $now
          """
-        .query[Code]
+        .query[CodeRow]
 
     def getPayload(token: String, now: Instant): Query0[Payload] =
       sql"""SELECT principal, display_name, mail, entitlements FROM token WHERE uuid = $token AND expires > $now"""

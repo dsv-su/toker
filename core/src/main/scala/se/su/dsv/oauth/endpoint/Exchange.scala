@@ -2,14 +2,17 @@ package se.su.dsv.oauth.endpoint
 
 import cats.data.{EitherT, OptionT}
 import cats.effect.Concurrent
-import cats.syntax.all._
-import io.circe.syntax._
-import org.http4s._
-import org.http4s.circe._
-import org.http4s.dsl._
+import cats.syntax.all.*
+import io.circe.syntax.*
+import org.http4s.*
+import org.http4s.circe.*
+import org.http4s.dsl.*
 import org.http4s.headers.{Authorization, `WWW-Authenticate`}
 import se.su.dsv.oauth.AccessTokenRequest.ErrorResponse
-import se.su.dsv.oauth._
+import se.su.dsv.oauth.*
+
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 
 class Exchange[F[_] : Concurrent]
 (
@@ -60,6 +63,7 @@ class Exchange[F[_] : Concurrent]
         _ <- validateCredentials(credentials.secret, client.secret)
         code <- lookupCode(credentials.clientId, accessTokenRequest.code)
           .toRight(AccessTokenRequest.invalidGrant)
+        _ <- validateProofKey(code.proofKey, accessTokenRequest.codeVerifier)
         _ <- validateRedirectUri(code.redirectUri, accessTokenRequest.redirectUri)
         token <- EitherT.right[AccessTokenRequest.ErrorResponse](generateToken(code.payload))
       } yield {
@@ -71,6 +75,25 @@ class Exchange[F[_] : Concurrent]
         case Left(AccessTokenRequest.invalidClient) => Unauthorized(`WWW-Authenticate`(Challenge("Basic", "toker")))
         case Left(error) => BadRequest(error.asJson)
       }
+  }
+
+  private def validateProofKey(proofKey: Option[ProofKey], codeVerifier: Option[String]): EitherT[F, ErrorResponse, Unit] = {
+    (proofKey, codeVerifier) match {
+      case (Some(ProofKey.Plain(challenge)), Some(code)) if challenge == code =>
+        EitherT.rightT(())
+      case (Some(ProofKey.Sha256(challenge)), Some(code)) =>
+        val challengeHash = Base64.getUrlDecoder.decode(challenge)
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val codeHash = digest.digest(code.getBytes(StandardCharsets.UTF_8))
+        if challengeHash == codeHash then
+          EitherT.rightT(())
+        else
+          EitherT.leftT(AccessTokenRequest.invalidGrant)
+      case (None, None) =>
+        EitherT.rightT(())
+      case _ =>
+        EitherT.leftT(AccessTokenRequest.invalidGrant)
+    }
   }
 }
 

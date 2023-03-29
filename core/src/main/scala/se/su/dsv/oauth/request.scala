@@ -66,7 +66,8 @@ object ProofKey {
 
 final case class AccessTokenRequest private (
   code: String,
-  redirectUri: Option[Uri]
+  redirectUri: Option[Uri],
+  codeVerifier: Option[String]
 )
 object AccessTokenRequest {
   sealed trait ErrorResponse
@@ -97,7 +98,8 @@ object AccessTokenRequest {
         if grantType == "authorization_code"
         code <- form.getFirst("code")
         redirectUri = form.getFirst("redirect_uri").flatMap(Uri.fromString(_).toOption)
-      } yield AccessTokenRequest(code, redirectUri)
+        codeVerifier = form.getFirst("code_verifier")
+      } yield AccessTokenRequest(code, redirectUri, codeVerifier)
     }
     for {
       form <- EntityDecoder[F, UrlForm]
