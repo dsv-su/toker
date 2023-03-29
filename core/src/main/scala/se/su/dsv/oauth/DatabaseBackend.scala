@@ -20,6 +20,14 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 
   def lookupClient(clientId: String): OptionT[F, Client] =
     OptionT(queries.lookupClient(clientId)
+      .map({ case ClientRow(name, maybeSecret, scopes, redirectUri) =>
+        maybeSecret match {
+          case Some(secret) =>
+            Client.Confidential(name, secret, scopes, redirectUri)
+          case None =>
+            Client.Public(name, scopes, redirectUri)
+        }
+      })
       .option
       .transact(xa))
 
@@ -83,17 +91,21 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 
 object DatabaseBackend {
   case class TokenDetails(expires: Instant, principal: String)
+
   case class CodeRow(redirectUri: Option[Uri], uuid: UUID, payload: Payload, codeChallenge: Option[CodeChallenge])
+
   case class CodeChallenge(challenge: String, method: String)
+
+  case class ClientRow(name: String, secret: Option[String], scopes: Set[String], redirectUri: Uri)
 
   object queries {
     def getTokenDetails(token: String): Query0[TokenDetails] =
       sql"""SELECT expires, principal FROM token WHERE uuid = $token"""
         .query[TokenDetails]
 
-    def lookupClient(clientId: String): Query0[Client] =
+    def lookupClient(clientId: String): Query0[ClientRow] =
       sql"""SELECT name, secret, scopes, redirect_uri FROM client WHERE uuid = $clientId"""
-        .query[Client]
+        .query[ClientRow]
 
     def purgeExpiredTokens(now: Instant): Update0 =
       sql"""DELETE FROM token WHERE expires < $now"""

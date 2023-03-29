@@ -22,8 +22,8 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
     "client and code is valid" should {
       val localhost = uri"http://localhost"
 
-      val client1 = Client("client-1", "client-1-secret", Set(), localhost)
-      val client2 = Client("client-2", "client-2-secret", Set(), localhost)
+      val confidentialClient = Client.Confidential("client-1", "client-1-secret", Set(), localhost)
+      val publicClient = Client.Public("client-2", Set(), localhost)
 
       val payload = Payload("test@localhost", Some("Test Testsson"), None, Entitlements(List(s"$entitlementPrefix:test-runner")))
 
@@ -36,8 +36,8 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
       val token = GeneratedToken(Token("token"), Duration.ofHours(1))
 
       val clients = Map[String, (Client, List[Code])](
-        client1.name -> (client1, List(codeWithoutRedirectWithoutPKCE, codeWithRedirectWithoutPKCE)),
-        client2.name -> (client2, List(codeWithPlainPKCE)))
+        confidentialClient.name -> (confidentialClient, List(codeWithoutRedirectWithoutPKCE, codeWithRedirectWithoutPKCE, codeWithPlainPKCE)),
+        publicClient.name -> (publicClient, List(codeWithPlainPKCE, codeWithoutRedirectWithoutPKCE)))
 
       val exchange = new Exchange[IO](
         clientId => OptionT.fromOption(clients.get(clientId).map(_._1)),
@@ -47,7 +47,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
 
       "reject exchange if redirect uri does not match" in {
         val request: Request[IO] = Request(method = Method.POST)
-          .putHeaders(Authorization(BasicCredentials(client1.name, client1.secret)))
+          .putHeaders(Authorization(BasicCredentials(confidentialClient.name, confidentialClient.secret)))
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
             ("code", codeWithRedirectWithoutPKCE.uuid.toString)))
@@ -67,7 +67,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
 
       "exchange for token with only client secret" in {
         val request: Request[IO] = Request(method = Method.POST)
-          .putHeaders(Authorization(BasicCredentials(client1.name, client1.secret)))
+          .putHeaders(Authorization(BasicCredentials(confidentialClient.name, confidentialClient.secret)))
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
             ("code", codeWithoutRedirectWithoutPKCE.uuid.toString)))
@@ -79,7 +79,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
 
       "exchange for token with client secret and PKCE" in {
         val request: Request[IO] = Request(method = Method.POST)
-          .putHeaders(Authorization(BasicCredentials(client2.name, client2.secret)))
+          .putHeaders(Authorization(BasicCredentials(confidentialClient.name, confidentialClient.secret)))
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
             ("code", codeWithPlainPKCE.uuid.toString),
@@ -92,7 +92,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
 
       "decline exchange for token with faulty client secret and valid PKCE" in {
         val request: Request[IO] = Request(method = Method.POST)
-          .putHeaders(Authorization(BasicCredentials(client1.name, client1.secret)))
+          .putHeaders(Authorization(BasicCredentials(confidentialClient.name, "invalid-secret")))
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
             ("code", codeWithPlainPKCE.uuid.toString),
@@ -100,29 +100,32 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
 
         val response = exchange.run(request).unsafeRunSync()
 
-        response.status should be(Status.BadRequest)
-
-        val json = response.as[Json].unsafeRunSync()
-
-        inside(json.asObject.value) {
-          jsonObject =>
-            inside(jsonObject("error").value) {
-              error => error.asString should be(Some("invalid_grant"))
-            }
-        }
+        response.status should be(Status.Unauthorized)
       }
 
       "exchange for token with only PKCE" in {
         val request: Request[IO] = Request(method = Method.POST)
-          .putHeaders(Authorization(BasicCredentials(client2.name, "")))
+          .putHeaders(Authorization(BasicCredentials(publicClient.name, "")))
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
-            ("code", codeWithoutRedirectWithoutPKCE.uuid.toString),
+            ("code", codeWithPlainPKCE.uuid.toString),
             ("code_verifier", plainProofKey)))
 
         val response = exchange.run(request).unsafeRunSync()
 
         response.status should be(Status.Ok)
+      }
+
+      "require PKCE for public clients" in {
+        val request: Request[IO] = Request(method = Method.POST)
+          .putHeaders(Authorization(BasicCredentials(publicClient.name, "")))
+          .withEntity(UrlForm(
+            ("grant_type", "authorization_code"),
+            ("code", codeWithoutRedirectWithoutPKCE.uuid.toString)))
+
+        val response = exchange.run(request).unsafeRunSync()
+
+        response.status should be(Status.BadRequest)
       }
     }
   }

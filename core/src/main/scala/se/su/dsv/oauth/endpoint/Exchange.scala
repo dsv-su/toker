@@ -26,11 +26,15 @@ class Exchange[F[_] : Concurrent]
   private def left[A](e: ErrorResponse): EitherT[F, ErrorResponse, A] =
     EitherT.leftT(e)
 
-  private def validateCredentials(providedSecret: String, clientSecret: String): EitherT[F, ErrorResponse, Unit] = {
-    if (providedSecret == clientSecret)
-      right(())
-    else
-      left(AccessTokenRequest.invalidClient)
+  private def validateCredentials(providedSecret: String, client: Client): EitherT[F, ErrorResponse, Unit] = {
+    client match {
+      case Client.Public(_, _, _) =>
+        right(())
+      case Client.Confidential(_, secret, _, _) if providedSecret == secret =>
+        right(())
+      case _ =>
+        left(AccessTokenRequest.invalidClient)
+    }
   }
 
   private def getCredentials(request: Request[F]): EitherT[F, ErrorResponse, ClientCredentials] = {
@@ -60,10 +64,10 @@ class Exchange[F[_] : Concurrent]
         accessTokenRequest <- AccessTokenRequest.fromRequest(request)
         client <- lookupClient(credentials.clientId)
           .toRight(AccessTokenRequest.invalidClient)
-        _ <- validateCredentials(credentials.secret, client.secret)
+        _ <- validateCredentials(credentials.secret, client)
         code <- lookupCode(credentials.clientId, accessTokenRequest.code)
           .toRight(AccessTokenRequest.invalidGrant)
-        _ <- validateProofKey(code.proofKey, accessTokenRequest.codeVerifier)
+        _ <- validateProofKey(client, code.proofKey, accessTokenRequest.codeVerifier)
         _ <- validateRedirectUri(code.redirectUri, accessTokenRequest.redirectUri)
         token <- EitherT.right[AccessTokenRequest.ErrorResponse](generateToken(code.payload))
       } yield {
@@ -77,7 +81,7 @@ class Exchange[F[_] : Concurrent]
       }
   }
 
-  private def validateProofKey(proofKey: Option[ProofKey], codeVerifier: Option[String]): EitherT[F, ErrorResponse, Unit] = {
+  private def validateProofKey(client: Client, proofKey: Option[ProofKey], codeVerifier: Option[String]): EitherT[F, ErrorResponse, Unit] = {
     (proofKey, codeVerifier) match {
       case (Some(ProofKey.Plain(challenge)), Some(code)) if challenge == code =>
         EitherT.rightT(())
@@ -89,9 +93,12 @@ class Exchange[F[_] : Concurrent]
           EitherT.rightT(())
         else
           EitherT.leftT(AccessTokenRequest.invalidGrant)
-      case (None, None) =>
+      case (None, None) if client.isConfidential =>
+        // client secret has been verified earlier, not using PKCE for confidential clients is fine
         EitherT.rightT(())
       case _ =>
+        // client was public, only authorization requests included pkce, or only the exchange included pkce
+        // all disallowed cases
         EitherT.leftT(AccessTokenRequest.invalidGrant)
     }
   }
