@@ -7,7 +7,7 @@ import cats.syntax.all.*
 import org.http4s.{Response, Uri}
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.Location
-import se.su.dsv.oauth.{AuthorizationRequest, Client, Code, GeneratedToken, Payload, ProofKey, ResponseType}
+import se.su.dsv.oauth.{AuthorizationRequest, Client, Code, GeneratedToken, Payload, CodeChallenge, ResponseType}
 
 sealed trait AuthorizationRequestError extends RuntimeException
 case class NoSuchClient(str: String) extends AuthorizationRequestError
@@ -17,7 +17,7 @@ case object InvalidRequest extends AuthorizationRequestError
 
 class AbstractAuthorize[F[_]]
 (lookupClient: String => OptionT[F, Client],
- generateCode: (String, Option[Uri], Payload, Option[ProofKey]) => F[Code])
+ generateCode: (String, Option[Uri], Payload, Option[CodeChallenge]) => F[Code])
 (using F: Concurrent[F])
   extends Http4sDsl[F] {
 
@@ -25,7 +25,7 @@ class AbstractAuthorize[F[_]]
     val response = for {
       client <- lookupClient(authorizationRequest.clientId)
         .getOrRaise(NoSuchClient(authorizationRequest.clientId))
-      _ <- F.raiseWhen(client.isPublic && authorizationRequest.proofKey.isEmpty)(InvalidRequest)
+      _ <- F.raiseWhen(client.isPublic && authorizationRequest.codeChallenge.isEmpty)(InvalidRequest)
       _ <- F.raiseUnless(authorizationRequest.scopes.forall(client.allowedScopes))(
         InvalidScopes(
           requested = authorizationRequest.scopes,
@@ -41,7 +41,7 @@ class AbstractAuthorize[F[_]]
       callbackUri <- authorizationRequest.responseType match {
         case ResponseType.Code =>
           for {
-            code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, payload, authorizationRequest.proofKey)
+            code <- generateCode(authorizationRequest.clientId, authorizationRequest.redirectUri, payload, authorizationRequest.codeChallenge)
           } yield redirectUri +*? code +?? ("state", authorizationRequest.state)
       }
     } yield SeeOther(Location(callbackUri))

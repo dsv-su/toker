@@ -19,7 +19,7 @@ final case class AuthorizationRequest private (
   redirectUri: Option[Uri],
   scopes: Set[String],
   state: Option[String],
-  proofKey: Option[ProofKey]
+  codeChallenge: Option[CodeChallenge]
 )
 object AuthorizationRequest {
   def fromRaw[F[_]](request: Request[F]): Option[AuthorizationRequest] =
@@ -35,7 +35,7 @@ object AuthorizationRequest {
         case _ => None
       }
       clientId <- getParam("client_id")
-      codeChallenge = (getParam("code_challenge"), Some(getParam("code_challenge_method"))).flatMapN(ProofKey.parse)
+      codeChallenge = (getParam("code_challenge"), Some(getParam("code_challenge_method"))).flatMapN(CodeChallenge.parse)
       redirectUri = getParam("redirect_uri").flatMap(Uri.fromString(_).toOption)
       scope = getParam("scope").map(_.split(' ').toSet).getOrElse(Set.empty)
       state = getParam("state")
@@ -44,17 +44,17 @@ object AuthorizationRequest {
     }
 }
 
-sealed trait ProofKey
-object ProofKey {
+sealed trait CodeChallenge
+object CodeChallenge {
   // Values from RFC 7636 (section 3 and 4.1)
   private val Base64_NoPadding_Sha256_Length = 43
   private val ChallengeMinLength = 43
   private val ChallengeMaxLength = 128
-  
-  final case class Plain(challenge: String) extends ProofKey
-  final case class Sha256(challenge: String) extends ProofKey
 
-  def parse(challenge: String, method: Option[String]): Option[ProofKey] =
+  final case class Plain(challenge: String) extends CodeChallenge
+  final case class Sha256(challenge: String) extends CodeChallenge
+
+  def parse(challenge: String, method: Option[String]): Option[CodeChallenge] =
     method match {
       case None | Some("plain") if challenge.length >= ChallengeMinLength && challenge.length <= ChallengeMaxLength =>
         Some(Plain(challenge))

@@ -4,7 +4,7 @@ import java.util.UUID
 
 import org.http4s._
 
-final case class Code(redirectUri: Option[Uri], uuid: UUID, payload: Payload, proofKey: Option[ProofKey])
+final case class Code(redirectUri: Option[Uri], uuid: UUID, payload: Payload, codeChallenge: Option[CodeChallenge])
 
 object Code {
   implicit object instances extends QueryParam[Code] with QueryParamEncoder[Code] {

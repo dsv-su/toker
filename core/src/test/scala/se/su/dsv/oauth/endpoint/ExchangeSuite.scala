@@ -30,11 +30,11 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
       val codeWithoutRedirectWithoutPKCE = Code(None, UUID.randomUUID(), payload, None)
       val codeWithRedirectWithoutPKCE = Code(Some(localhost), UUID.randomUUID(), payload, None)
 
-      val plainProofKey = "plain-proof-key"
-      val codeWithPlainPKCE = Code(None, UUID.randomUUID(), payload, Some(ProofKey.Plain(plainProofKey)))
+      val plainCodeVerifier = "plain-key"
+      val codeWithPlainPKCE = Code(None, UUID.randomUUID(), payload, Some(CodeChallenge.Plain(plainCodeVerifier)))
 
       val sha256CodeVerifier = "averylongstringthatwillbehashedwithsha256"
-      val codeWithSha256PKCE = Code(None, UUID.randomUUID(), payload, Some(ProofKey.Sha256("Je2tyc_cm4NjBaZHTJDcwD2uNtSD-yQSaJX0tUMRdqg")))
+      val codeWithSha256PKCE = Code(None, UUID.randomUUID(), payload, Some(CodeChallenge.Sha256("Je2tyc_cm4NjBaZHTJDcwD2uNtSD-yQSaJX0tUMRdqg")))
 
       val token = GeneratedToken(Token("token"), Duration.ofHours(1))
 
@@ -86,7 +86,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
             ("code", codeWithPlainPKCE.uuid.toString),
-            ("code_verifier", plainProofKey)))
+            ("code_verifier", plainCodeVerifier)))
 
         val response = exchange.run(request).unsafeRunSync()
 
@@ -99,7 +99,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
             ("code", codeWithPlainPKCE.uuid.toString),
-            ("code_verifier", plainProofKey)))
+            ("code_verifier", plainCodeVerifier)))
 
         val response = exchange.run(request).unsafeRunSync()
 
@@ -112,7 +112,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
           .withEntity(UrlForm(
             ("grant_type", "authorization_code"),
             ("code", codeWithPlainPKCE.uuid.toString),
-            ("code_verifier", plainProofKey)))
+            ("code_verifier", plainCodeVerifier)))
 
         val response = exchange.run(request).unsafeRunSync()
 

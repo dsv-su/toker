@@ -42,16 +42,16 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
       } yield ()).transact(xa)
     } yield GeneratedToken(Token(uuid.toString), TokenDuration)
 
-  def generateCode(clientId: String, redirectUri: Option[Uri], payload: Payload, proofKey: Option[ProofKey]): F[Code] =
+  def generateCode(clientId: String, redirectUri: Option[Uri], payload: Payload, codeChallenge: Option[CodeChallenge]): F[Code] =
     for {
       uuid <- S.delay(UUID.randomUUID())
       now <- S.delay(Instant.now())
       expiration = now.plus(Duration.ofMinutes(1))
       _ <- (for {
         _ <- queries.purgeExpiredCodes(now).run
-        _ <- queries.storeCode(clientId, redirectUri, uuid, payload, expiration, proofKey).run
+        _ <- queries.storeCode(clientId, redirectUri, uuid, payload, expiration, codeChallenge).run
       } yield ()).transact(xa)
-    } yield Code(redirectUri, uuid, payload, proofKey)
+    } yield Code(redirectUri, uuid, payload, codeChallenge)
 
   def lookupCode(clientId: String, uuidString: String): OptionT[F, Code] =
     OptionT(for {
@@ -104,9 +104,9 @@ object DatabaseBackend {
       sql"""DELETE FROM code WHERE expires < $now"""
         .update
 
-    def storeCode(clientId: String, redirectUri: Option[Uri], uuid: UUID, payload: Payload, expires: Instant, proofKey: Option[ProofKey]): Update0 =
+    def storeCode(clientId: String, redirectUri: Option[Uri], uuid: UUID, payload: Payload, expires: Instant, codeChallenge: Option[CodeChallenge]): Update0 =
       sql"""INSERT INTO code (client_id, redirect_uri, uuid, expires, principal, display_name, mail, entitlements, code_challenge)
-            VALUES ($clientId, $redirectUri, $uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements}, $proofKey)
+            VALUES ($clientId, $redirectUri, $uuid, $expires, ${payload.principal}, ${payload.displayName}, ${payload.mail}, ${payload.entitlements}, $codeChallenge)
          """
         .update
 
@@ -130,12 +130,12 @@ object DatabaseBackend {
 
   implicit val entitlementsMeta: Meta[Entitlements] = Meta[String].imap(scsv => Entitlements(scsv.split(';').toList))(_.values.mkString(";"))
 
-  implicit val proofKeyMeta: Meta[ProofKey] = Meta[String]
+  implicit val codeChallengeMeta: Meta[CodeChallenge] = Meta[String]
     .imap(_.split(':') match {
-      case Array("plain", challenge) => ProofKey.Plain(challenge)
-      case Array("sha256", challenge) => ProofKey.Sha256(challenge)
+      case Array("plain", challenge) => CodeChallenge.Plain(challenge)
+      case Array("sha256", challenge) => CodeChallenge.Sha256(challenge)
     })({
-      case ProofKey.Plain(challenge) => s"plain:$challenge"
-      case ProofKey.Sha256(challenge) => s"sha256:$challenge"
+      case CodeChallenge.Plain(challenge) => s"plain:$challenge"
+      case CodeChallenge.Sha256(challenge) => s"sha256:$challenge"
     })
 }

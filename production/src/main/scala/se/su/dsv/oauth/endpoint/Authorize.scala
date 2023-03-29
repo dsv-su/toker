@@ -12,7 +12,7 @@ import se.su.dsv.oauth._
 class Authorize[F[_] : Concurrent]
 (
   lookupClient: String => OptionT[F, Client],
-  generateCode: (String, Option[Uri], Payload, Option[ProofKey]) => F[Code]
+  generateCode: (String, Option[Uri], Payload, Option[CodeChallenge]) => F[Code]
 ) extends AbstractAuthorize[F](lookupClient, generateCode)
 {
 

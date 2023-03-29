@@ -67,7 +67,7 @@ class Exchange[F[_] : Concurrent]
         _ <- validateCredentials(credentials.secret, client)
         code <- lookupCode(credentials.clientId, accessTokenRequest.code)
           .toRight(AccessTokenRequest.invalidGrant)
-        _ <- validateProofKey(client, code.proofKey, accessTokenRequest.codeVerifier)
+        _ <- validateCodeChallenge(client, code.codeChallenge, accessTokenRequest.codeVerifier)
         _ <- validateRedirectUri(code.redirectUri, accessTokenRequest.redirectUri)
         token <- EitherT.right[AccessTokenRequest.ErrorResponse](generateToken(code.payload))
       } yield {
@@ -81,11 +81,11 @@ class Exchange[F[_] : Concurrent]
       }
   }
 
-  private def validateProofKey(client: Client, proofKey: Option[ProofKey], codeVerifier: Option[String]): EitherT[F, ErrorResponse, Unit] = {
-    (proofKey, codeVerifier) match {
-      case (Some(ProofKey.Plain(challenge)), Some(code)) if challenge == code =>
+  private def validateCodeChallenge(client: Client, codeChallenge: Option[CodeChallenge], codeVerifier: Option[String]): EitherT[F, ErrorResponse, Unit] = {
+    (codeChallenge, codeVerifier) match {
+      case (Some(CodeChallenge.Plain(challenge)), Some(code)) if challenge == code =>
         EitherT.rightT(())
-      case (Some(ProofKey.Sha256(challenge)), Some(code)) =>
+      case (Some(CodeChallenge.Sha256(challenge)), Some(code)) =>
         val challengeHash = Base64.getUrlDecoder.decode(challenge)
         val digest = java.security.MessageDigest.getInstance("SHA-256")
         val codeHash = digest.digest(code.getBytes(StandardCharsets.UTF_8))
