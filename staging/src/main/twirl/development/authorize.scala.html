@@ -33,7 +33,7 @@
         <br>
         <button type="submit">Issue ticket</button>
 
-        @params.map { case (key, value) =>
+        @for((key, value) <- params) {
             <input type="hidden" name="@key" value="@value">
         }
     </form>
@@ -67,7 +67,7 @@
         <br>
         <button type="submit">Issue ticket</button>
 
-        @params.map { case (key, value) =>
+        @for((key, value) <- params) {
           <input type="hidden" name="@key" value="@value">
         }
     </form>
