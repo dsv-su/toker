@@ -71,8 +71,8 @@ lazy val dev = project.in(file("dev"))
   .enablePlugins(JettyPlugin)
   .settings(
     name := "dev",
-    containerArgs in Jetty := Seq("--config", "jetty.xml"),
-    containerLibs in Jetty ++= Seq("mysql" % "mysql-connector-java" % "5.1.40"),
+    Jetty / containerArgs := Seq("--config", "jetty.xml"),
+    Jetty / containerLibs ++= Seq("org.mariadb.jdbc" % "mariadb-java-client" % "3.1.3"),
     webappPostProcess := {
       webappDir =>
         val stagingWebapp = (staging / Compile / webappPrepare / sourceDirectory).value / "webapp"

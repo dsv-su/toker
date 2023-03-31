@@ -4,8 +4,8 @@
         <Arg><Ref refid="server"/></Arg>
         <Arg>jdbc/oauthDS</Arg>
         <Arg>
-            <New class="com.mysql.jdbc.jdbc2.optional.MysqlConnectionPoolDataSource">
-                <Set name="Url">jdbc:mysql://localhost:3306/oauth</Set>
+            <New class="org.mariadb.jdbc.MariaDbDataSource">
+                <Set name="Url">jdbc:mariadb://localhost:3306/oauth</Set>
                 <Set name="User">oauth</Set>
                 <Set name="Password">oauth</Set>
             </New>
