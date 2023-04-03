@@ -44,7 +44,7 @@ class Main extends ServletContextListener {
 
     mountService(ctx,
       name = "authorize",
-      service = new Authorize(backend.lookupClient, backend.generateToken, backend.generateCode).service,
+      service = new Authorize(backend.lookupClient, backend.generateCode).service,
       mapping = "/authorize")
 
     mountService(ctx,

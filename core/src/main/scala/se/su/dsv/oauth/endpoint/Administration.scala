@@ -14,7 +14,7 @@ class Administration[F[_]]
   ( listClients: Principal => F[List[Client]]
   , lookupClient: (Principal, String) => F[Option[ClientDetails]]
   , registerClient: (Principal, String, String, Set[String]) => F[Client]
-  , updateClient: (Principal, String, String, String, String, Set[String])  => F[ClientDetails]
+  , updateClient: (Principal, String, Option[String], String, String, Set[String])  => F[ClientDetails]
   )
   (implicit A: Concurrent[F])
   extends Http4sDsl[F]
@@ -53,7 +53,8 @@ class Administration[F[_]]
             updatedClient = for {
               name <- form.getFirst("name")
               redirectUri <- form.getFirst("redirectUri")
-              secret <- form.getFirst("secret")
+              secret = form.getFirst("secret")
+                .filter(_.length == 32)
               scopes = form.getFirst("scopes").map(_.linesIterator.toSet).getOrElse(Set.empty)
             } yield {
               updateClient(principal, clientId, secret, name, redirectUri, scopes) flatMap { client =>

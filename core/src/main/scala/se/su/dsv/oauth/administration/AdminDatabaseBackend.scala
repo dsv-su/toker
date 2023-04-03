@@ -20,7 +20,7 @@ class AdminDatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
     for {
       clientId <- alphaNum(36)
       clientSecret <- alphaNum(32)
-      _ <- queries.insertClient(owner, clientId, clientSecret, name, redirectUri, scopes)
+      _ <- queries.insertClient(owner, clientId, Some(clientSecret), name, redirectUri, scopes)
         .run
         .transact(xa)
     } yield Client(clientId, name)
@@ -48,7 +48,7 @@ class AdminDatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 
   def updateClient(owner: Principal,
                    clientId: String,
-                   secret: String,
+                   secret: Option[String],
                    name: String,
                    redirectUri: String,
                    scopes: Set[String]): F[ClientDetails] =
@@ -58,7 +58,7 @@ class AdminDatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
       .transact(xa)
 
   def updateClient(clientId: String,
-                   secret: String,
+                   secret: Option[String],
                    name: String,
                    redirectUri: String,
                    scopes: Set[String]): F[ClientDetails] =
@@ -80,7 +80,7 @@ object AdminDatabaseBackend {
       sql"""select uuid, name from client where owner = $owner"""
         .query[Client]
 
-    def insertClient(owner: Principal, clientId: String, clientSecret: String, name: String, redirectUri: String, scopes: Set[String]): Update0 =
+    def insertClient(owner: Principal, clientId: String, clientSecret: Option[String], name: String, redirectUri: String, scopes: Set[String]): Update0 =
       sql"""insert into client (owner, name, uuid, secret, redirect_uri, scopes)
             values ($owner, $name, $clientId, $clientSecret, $redirectUri, $scopes)"""
         .update
@@ -99,7 +99,7 @@ object AdminDatabaseBackend {
 
     def updateClient(owner: Principal,
                      clientId: String,
-                     secret: String,
+                     secret: Option[String],
                      name: String,
                      redirectUri: String,
                      scopes: Set[String]): Update0 =
@@ -108,7 +108,7 @@ object AdminDatabaseBackend {
         .update
 
     def updateClient(clientId: String,
-                     secret: String,
+                     secret: Option[String],
                      name: String,
                      redirectUri: String,
                      scopes: Set[String]): Update0 =

@@ -1,5 +1,6 @@
 package se.su.dsv.oauth
 
+import cats.syntax.all._
 import cats.data.EitherT
 import cats.effect.Concurrent
 import io.circe.*
@@ -10,7 +11,6 @@ import org.http4s.{EntityDecoder, Request, Uri, UrlForm}
 sealed trait ResponseType
 object ResponseType {
   case object Code extends ResponseType
-  case object Token extends ResponseType
 }
 
 final case class AuthorizationRequest private (
@@ -18,7 +18,8 @@ final case class AuthorizationRequest private (
   clientId: String,
   redirectUri: Option[Uri],
   scopes: Set[String],
-  state: Option[String]
+  state: Option[String],
+  codeChallenge: Option[CodeChallenge]
 )
 object AuthorizationRequest {
   def fromRaw[F[_]](request: Request[F]): Option[AuthorizationRequest] =
@@ -31,21 +32,42 @@ object AuthorizationRequest {
     for {
       responseType <- getParam("response_type").flatMap {
         case "code" => Some(ResponseType.Code)
-        case "token" => Some(ResponseType.Token)
         case _ => None
       }
       clientId <- getParam("client_id")
+      codeChallenge = (getParam("code_challenge"), Some(getParam("code_challenge_method"))).flatMapN(CodeChallenge.parse)
       redirectUri = getParam("redirect_uri").flatMap(Uri.fromString(_).toOption)
       scope = getParam("scope").map(_.split(' ').toSet).getOrElse(Set.empty)
       state = getParam("state")
     } yield {
-      AuthorizationRequest(responseType, clientId, redirectUri, scope, state)
+      AuthorizationRequest(responseType, clientId, redirectUri, scope, state, codeChallenge)
+    }
+}
+
+sealed trait CodeChallenge
+object CodeChallenge {
+  // Values from RFC 7636 (section 3 and 4.1)
+  private val Base64_NoPadding_Sha256_Length = 43
+  private val ChallengeMinLength = 43
+  private val ChallengeMaxLength = 128
+
+  final case class Plain(challenge: String) extends CodeChallenge
+  final case class Sha256(challenge: String) extends CodeChallenge
+
+  def parse(challenge: String, method: Option[String]): Option[CodeChallenge] =
+    method match {
+      case None | Some("plain") if challenge.length >= ChallengeMinLength && challenge.length <= ChallengeMaxLength =>
+        Some(Plain(challenge))
+      case Some("S256") if challenge.length == Base64_NoPadding_Sha256_Length =>
+        Some(Sha256(challenge))
+      case _ => None
     }
 }
 
 final case class AccessTokenRequest private (
   code: String,
-  redirectUri: Option[Uri]
+  redirectUri: Option[Uri],
+  codeVerifier: Option[String]
 )
 object AccessTokenRequest {
   sealed trait ErrorResponse
@@ -76,7 +98,8 @@ object AccessTokenRequest {
         if grantType == "authorization_code"
         code <- form.getFirst("code")
         redirectUri = form.getFirst("redirect_uri").flatMap(Uri.fromString(_).toOption)
-      } yield AccessTokenRequest(code, redirectUri)
+        codeVerifier = form.getFirst("code_verifier")
+      } yield AccessTokenRequest(code, redirectUri, codeVerifier)
     }
     for {
       form <- EntityDecoder[F, UrlForm]

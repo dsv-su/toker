@@ -2,14 +2,17 @@ package se.su.dsv.oauth.endpoint
 
 import cats.data.{EitherT, OptionT}
 import cats.effect.Concurrent
-import cats.syntax.all._
-import io.circe.syntax._
-import org.http4s._
-import org.http4s.circe._
-import org.http4s.dsl._
+import cats.syntax.all.*
+import io.circe.syntax.*
+import org.http4s.*
+import org.http4s.circe.*
+import org.http4s.dsl.*
 import org.http4s.headers.{Authorization, `WWW-Authenticate`}
 import se.su.dsv.oauth.AccessTokenRequest.ErrorResponse
-import se.su.dsv.oauth._
+import se.su.dsv.oauth.*
+
+import java.nio.charset.StandardCharsets
+import java.util.Base64
 
 class Exchange[F[_] : Concurrent]
 (
@@ -23,11 +26,15 @@ class Exchange[F[_] : Concurrent]
   private def left[A](e: ErrorResponse): EitherT[F, ErrorResponse, A] =
     EitherT.leftT(e)
 
-  private def validateCredentials(providedSecret: String, clientSecret: String): EitherT[F, ErrorResponse, Unit] = {
-    if (providedSecret == clientSecret)
-      right(())
-    else
-      left(AccessTokenRequest.invalidClient)
+  private def validateCredentials(providedSecret: String, client: Client): EitherT[F, ErrorResponse, Unit] = {
+    client match {
+      case Client.Public(_, _, _) =>
+        right(())
+      case Client.Confidential(_, secret, _, _) if providedSecret == secret =>
+        right(())
+      case _ =>
+        left(AccessTokenRequest.invalidClient)
+    }
   }
 
   private def getCredentials(request: Request[F]): EitherT[F, ErrorResponse, ClientCredentials] = {
@@ -57,9 +64,10 @@ class Exchange[F[_] : Concurrent]
         accessTokenRequest <- AccessTokenRequest.fromRequest(request)
         client <- lookupClient(credentials.clientId)
           .toRight(AccessTokenRequest.invalidClient)
-        _ <- validateCredentials(credentials.secret, client.secret)
+        _ <- validateCredentials(credentials.secret, client)
         code <- lookupCode(credentials.clientId, accessTokenRequest.code)
           .toRight(AccessTokenRequest.invalidGrant)
+        _ <- validateCodeChallenge(client, code.codeChallenge, accessTokenRequest.codeVerifier)
         _ <- validateRedirectUri(code.redirectUri, accessTokenRequest.redirectUri)
         token <- EitherT.right[AccessTokenRequest.ErrorResponse](generateToken(code.payload))
       } yield {
@@ -71,6 +79,28 @@ class Exchange[F[_] : Concurrent]
         case Left(AccessTokenRequest.invalidClient) => Unauthorized(`WWW-Authenticate`(Challenge("Basic", "toker")))
         case Left(error) => BadRequest(error.asJson)
       }
+  }
+
+  private def validateCodeChallenge(client: Client, codeChallenge: Option[CodeChallenge], codeVerifier: Option[String]): EitherT[F, ErrorResponse, Unit] = {
+    (codeChallenge, codeVerifier) match {
+      case (Some(CodeChallenge.Plain(challenge)), Some(code)) if challenge == code =>
+        EitherT.rightT(())
+      case (Some(CodeChallenge.Sha256(challenge)), Some(code)) =>
+        val challengeHash = Base64.getUrlDecoder.decode(challenge)
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val codeHash = digest.digest(code.getBytes(StandardCharsets.UTF_8))
+        if java.util.Arrays.equals(challengeHash, codeHash) then
+          EitherT.rightT(())
+        else
+          EitherT.leftT(AccessTokenRequest.invalidGrant)
+      case (None, None) if client.isConfidential =>
+        // client secret has been verified earlier, not using PKCE for confidential clients is fine
+        EitherT.rightT(())
+      case _ =>
+        // client was public, only authorization requests included pkce, or only the exchange included pkce
+        // all disallowed cases
+        EitherT.leftT(AccessTokenRequest.invalidGrant)
+    }
   }
 }
 
