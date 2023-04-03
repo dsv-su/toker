@@ -7,6 +7,15 @@ The administration GUI is available under `/admin`.
 * Token end point `/exchange`
 * Introspection end point `/introspect`
 
+## OAuth 2.0 details
+
+### Authorization grant
+The only supported method is [authorization code grant](https://www.rfc-editor.org/rfc/rfc6749#section-4.1).
+[PKCE](https://www.rfc-editor.org/rfc/rfc7636) is mandatory for public clients and optional for confidential.
+
+### Scopes
+Scopes are, for now, unused by Toker itself but may be used by specific resource servers.
+
 ## Developing
 ### Locally
 Run `sbt` and then `~dev/Jetty/debug`.
