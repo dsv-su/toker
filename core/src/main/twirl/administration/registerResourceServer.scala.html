@@ -1,0 +1,15 @@
+@html.dsv("Register new resource server") {
+
+    <h2>Resource servers</h2>
+    <h3>Register new resource server</h3>
+    <form action="/admin/resource-server" method="post">
+        <label>
+            Name
+            <input type="text" name="name" required>
+        </label>
+        <br>
+        <button type="submit">Register</button>
+        <a href="/admin">Cancel</a>
+    </form>
+
+}
