@@ -1,0 +1,32 @@
+services:
+  toker:
+    container_name: toker
+    build:
+      context: .
+    restart: on-failure
+    depends_on:
+      - toker-db
+    ports:
+      - '8080:8080'
+      - '8888:8888'
+    networks:
+      - toker-net
+    volumes:
+      - ./core:/app/core
+      - ./staging:/app/staging
+      - ./dev:/app/dev
+  toker-db:
+    container_name: toker-db
+    image: mariadb
+    restart: on-failure
+    ports:
+      - '3306:3306'
+    environment:
+      - MARIADB_RANDOM_ROOT_PASSWORD=yes
+      - MARIADB_DATABASE=oauth
+      - MARIADB_USER=oauth
+      - MARIADB_PASSWORD=oauth
+    networks:
+      - toker-net
+networks:
+  toker-net:

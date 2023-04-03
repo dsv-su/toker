@@ -73,6 +73,11 @@ lazy val dev = project.in(file("dev"))
     name := "dev",
     Jetty / containerArgs := Seq("--config", "jetty.xml"),
     Jetty / containerLibs ++= Seq("org.mariadb.jdbc" % "mariadb-java-client" % "3.1.3"),
+    watchTriggers ++= Seq(
+      (core / TwirlKeys.compileTemplates / sourceDirectory).value,
+      (staging / TwirlKeys.compileTemplates / sourceDirectory).value,
+      (TwirlKeys.compileTemplates / sourceDirectory).value,
+    ).map(_.toGlob / "**" / "twirl" / "**"),
     webappPostProcess := {
       webappDir =>
         val stagingWebapp = (staging / Compile / webappPrepare / sourceDirectory).value / "webapp"
