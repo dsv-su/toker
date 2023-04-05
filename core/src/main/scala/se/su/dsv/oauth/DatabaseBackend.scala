@@ -67,12 +67,15 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 
   def introspect(token: Token): F[Introspection] =
     for {
+      now <- S.delay(Instant.now())
       tokenDetails <- queries.getTokenDetails(token.token).option.transact(xa)
     } yield tokenDetails match {
       case None =>
         Introspection.Inactive
-      case Some(TokenDetails(expires, principal)) =>
+      case Some(TokenDetails(expires, principal)) if expires.isAfter(now) =>
         Introspection.Active(principal, expires)
+      case Some(_) =>
+        Introspection.Inactive
     }
 
   def lookupResourceServerSecret(resourceServerId: String): F[Option[String]] =
