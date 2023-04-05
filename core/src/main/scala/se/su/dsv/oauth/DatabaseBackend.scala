@@ -74,6 +74,11 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
       case Some(TokenDetails(expires, principal)) =>
         Introspection.Active(principal, expires)
     }
+
+  def lookupResourceServerSecret(resourceServerId: String): F[Option[String]] =
+    queries.lookupResourceServerSecret(resourceServerId)
+      .option
+      .transact(xa)
 }
 
 object DatabaseBackend {
@@ -120,6 +125,10 @@ object DatabaseBackend {
     def getPayload(token: String, now: Instant): Query0[Payload] =
       sql"""SELECT principal, display_name, mail, entitlements FROM token WHERE uuid = $token AND expires > $now"""
         .query[Payload]
+
+    def lookupResourceServerSecret(resourceServerId: String): Query0[String] =
+      sql"""SELECT secret FROM resource_server WHERE id = $resourceServerId"""
+        .query[String]
   }
 
   implicit val uriMeta: Meta[Uri] = Meta[String].imap(Uri.unsafeFromString)(_.renderString)

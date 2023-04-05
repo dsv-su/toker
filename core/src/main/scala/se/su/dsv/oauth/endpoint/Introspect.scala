@@ -9,11 +9,14 @@ import org.http4s.circe.*
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.Authorization
 import se.su.dsv.oauth.Token
+import se.su.dsv.oauth.administration.ResourceServer
 
 import java.time.Instant
 
 class Introspect[F[_]]
-(lookupToken: Token => F[Introspection])
+  ( lookupToken: Token => F[Introspection]
+  , lookupResourceServerSecret: String => F[Option[String]]
+  )
 (using F: Concurrent[F])
   extends Http4sDsl[F]
 {
@@ -21,12 +24,24 @@ class Introspect[F[_]]
     case request@POST -> Root =>
       for {
         formData <- request.as[UrlForm]
-        _ <- F.fromOption(request.headers.get[Authorization], InvalidCredentials)
-        // todo: validate credentials
+        _ <- validateCredentials(request.headers.get[Authorization])
         opaqueString <- F.fromOption(formData.getFirst("token"), MalformedMessageBodyFailure("No token provided"))
         introspection <- lookupToken(Token(opaqueString))
         response <- Ok(introspection.asJson)
       } yield response
+  }
+
+  private def validateCredentials(authorization: Option[Authorization]): F[Unit] = {
+    authorization match {
+      case Some(Authorization(BasicCredentials(resourceServerId, providedSecret))) =>
+        for {
+          maybeSecret <- lookupResourceServerSecret(resourceServerId)
+          secret <- F.fromOption(maybeSecret, InvalidCredentials)
+          _ <- F.raiseUnless(secret == providedSecret)(InvalidCredentials)
+        } yield ()
+      case _ =>
+        F.raiseError(InvalidCredentials)
+    }
   }
 }
 

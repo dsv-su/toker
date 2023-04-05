@@ -59,7 +59,7 @@ class Main extends ServletContextListener {
     
     mountService(ctx,
       name = "introspect",
-      service = new Introspect(backend.introspect).service,
+      service = new Introspect(backend.introspect, backend.lookupResourceServerSecret).service,
       mapping = "/introspect")
 
     val remoteUserAuthentication = AuthMiddleware[IO, String](Kleisli(
