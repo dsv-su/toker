@@ -72,8 +72,8 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
     } yield tokenDetails match {
       case None =>
         Introspection.Inactive
-      case Some(TokenDetails(expires, principal)) if expires.isAfter(now) =>
-        Introspection.Active(principal, expires)
+      case Some(TokenDetails(expires, principal, entitlements)) if expires.isAfter(now) =>
+        Introspection.Active(principal, expires, entitlements)
       case Some(_) =>
         Introspection.Inactive
     }
@@ -85,13 +85,13 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 }
 
 object DatabaseBackend {
-  case class TokenDetails(expires: Instant, principal: String)
+  case class TokenDetails(expires: Instant, principal: String, entitlements: Entitlements)
 
   case class ClientRow(name: String, secret: Option[String], scopes: Set[String], redirectUri: Uri)
 
   object queries {
     def getTokenDetails(token: String): Query0[TokenDetails] =
-      sql"""SELECT expires, principal FROM token WHERE uuid = $token"""
+      sql"""SELECT expires, principal, entitlements FROM token WHERE uuid = $token"""
         .query[TokenDetails]
 
     def lookupClient(clientId: String): Query0[ClientRow] =

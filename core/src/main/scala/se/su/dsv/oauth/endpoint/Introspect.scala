@@ -8,7 +8,7 @@ import org.http4s.{BasicCredentials, HttpRoutes, MalformedMessageBodyFailure, Ur
 import org.http4s.circe.*
 import org.http4s.dsl.Http4sDsl
 import org.http4s.headers.Authorization
-import se.su.dsv.oauth.Token
+import se.su.dsv.oauth.{Entitlements, Token}
 import se.su.dsv.oauth.administration.ResourceServer
 
 import java.time.Instant
@@ -48,17 +48,18 @@ class Introspect[F[_]]
 sealed trait Introspection
 
 object Introspection {
-  case class Active(subject: String, expiration: Instant) extends Introspection
+  case class Active(subject: String, expiration: Instant, entitlements: Entitlements) extends Introspection
 
   case object Inactive extends Introspection
 
   implicit def jsonEncoder: Encoder[Introspection] =
     Encoder.instance {
-      case Active(subject, expiration) =>
+      case Active(subject, expiration, entitlements) =>
         Json.obj(
           "active" -> Json.True,
           "sub" -> subject.asJson,
-          "exp" -> expiration.getEpochSecond.asJson)
+          "exp" -> expiration.getEpochSecond.asJson,
+          "entitlements" -> entitlements.values.asJson)
       case Inactive => Json.obj("active" -> Json.False)
     }
 }
