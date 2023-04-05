@@ -73,9 +73,9 @@ class Main extends ServletContextListener {
         registerClient = adminBackend.registerClient,
         updateClient = adminBackend.updateClient,
         registerResourceServer = adminBackend.registerResourceServer,
-        lookupResourceServer = adminBackend.lookupResourceServer,
-        listResourceServers = adminBackend.listResourceServers,
-        updateResourceServer = adminBackend.updateResourceServer
+        lookupResourceServer = adminBackend.lookupResourceServer(false),
+        listResourceServers = adminBackend.listResourceServers(false),
+        updateResourceServer = adminBackend.updateResourceServer(false)
       ).service),
       mapping = "/admin/*")
 
