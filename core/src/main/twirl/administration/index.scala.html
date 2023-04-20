@@ -1,6 +1,7 @@
 @import se.su.dsv.oauth.administration.Client
+@import se.su.dsv.oauth.administration.ResourceServer
 
-@(clients: List[Client])
+@(clients: List[Client], resourceServers: List[ResourceServer])
 
 @html.dsv("Administrate clients") {
 
@@ -13,5 +14,16 @@
     </ul>
 
     <a href="/admin/client">Register new client</a>
+
+    <h2>Resource servers</h2>
+    <p>Resource servers use the token introspection endpoint (RFC 7662) to verify the tokens.</p>
+
+    <ul>
+        @resourceServers.map { resourceServer =>
+          <li><a href="/admin/resource-server/@resourceServer.id">@resourceServer.name</a></li>
+        }
+    </ul>
+
+    <a href="/admin/resource-server">Register new resource server</a>
 
 }

@@ -67,6 +67,28 @@ class AdminDatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
       .as(ClientDetails(clientId, name, secret, scopes, redirectUri))
       .transact(xa)
 
+  def registerResourceServer(owner: Principal, name: String): F[ResourceServer] =
+    for {
+      id <- alphaNum(32)
+      secret <- alphaNum(32)
+      _ <- queries.insertResourceServer(owner, name, id, secret).run.transact(xa)
+    } yield ResourceServer(id, name, secret)
+
+  def lookupResourceServer(all: Boolean)(owner: Principal, id: String): F[Option[ResourceServer]] =
+    queries.lookupResourceServer(all, owner, id)
+      .option
+      .transact(xa)
+
+  def listResourceServers(all: Boolean)(owner: Principal): F[List[ResourceServer]] =
+    queries.listResourceServers(all, owner)
+      .to[List]
+      .transact(xa)
+
+  def updateResourceServer(all: Boolean)(owner: Principal, resourceServer: ResourceServer): F[Unit] =
+    queries.updateResourceServer(all, owner, resourceServer.id, resourceServer.name, resourceServer.secret)
+      .run
+      .void
+      .transact(xa)
 }
 
 object AdminDatabaseBackend {
@@ -114,6 +136,22 @@ object AdminDatabaseBackend {
                      scopes: Set[String]): Update0 =
       sql"""update client set secret = $secret, name = $name, scopes = $scopes, redirect_uri = $redirectUri
             where uuid = $clientId"""
+        .update
+
+    def insertResourceServer(owner: Principal, name: String, id: String, secret: String): Update0 =
+      sql"""insert into resource_server (owner, name, id, secret) values ($owner, $name, $id, $secret)"""
+        .update
+
+    def lookupResourceServer(all: Boolean, owner: Principal, id: String): Query0[ResourceServer] =
+      sql"""select id, name, secret from resource_server where ($all is true or owner = $owner) and id = $id"""
+        .query
+
+    def listResourceServers(all: Boolean, owner: Principal): Query0[ResourceServer] =
+      sql"""select id, name, secret from resource_server where ($all is true or owner = $owner)"""
+        .query
+
+    def updateResourceServer(all: Boolean, owner: Principal, id: String, name: String, secret: String): Update0 =
+      sql"""update resource_server set name = $name, secret = $secret where (true = $all or owner = $owner) and id = $id"""
         .update
 
     implicit val spaceSeparated: Meta[Set[String]] = Meta[String].imap(_.split(' ').toSet)(_.mkString(" "))

@@ -28,4 +28,6 @@ class AdminDatabaseBackendSuite extends AnyFunSuite with IOChecker {
   test("insert client")        { check(queries.insertClient(null, null, null, null, null, Set.empty)) }
   test("update client")        { check(queries.updateClient(null, null, null, null, Set.empty)) }
   test("update owned client")  { check(queries.updateClient(null, null, null, null, null, Set.empty)) }
+  test("lookup resource server") { checkOutput(queries.lookupResourceServer(false, null, null)) }
+  test("list resource server")   { checkOutput(queries.listResourceServers(false, null)) }
 }

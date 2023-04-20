@@ -67,23 +67,31 @@ class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
 
   def introspect(token: Token): F[Introspection] =
     for {
+      now <- S.delay(Instant.now())
       tokenDetails <- queries.getTokenDetails(token.token).option.transact(xa)
     } yield tokenDetails match {
       case None =>
         Introspection.Inactive
-      case Some(TokenDetails(expires, principal)) =>
-        Introspection.Active(principal, expires)
+      case Some(TokenDetails(expires, principal, entitlements)) if expires.isAfter(now) =>
+        Introspection.Active(principal, expires, entitlements)
+      case Some(_) =>
+        Introspection.Inactive
     }
+
+  def lookupResourceServerSecret(resourceServerId: String): F[Option[String]] =
+    queries.lookupResourceServerSecret(resourceServerId)
+      .option
+      .transact(xa)
 }
 
 object DatabaseBackend {
-  case class TokenDetails(expires: Instant, principal: String)
+  case class TokenDetails(expires: Instant, principal: String, entitlements: Entitlements)
 
   case class ClientRow(name: String, secret: Option[String], scopes: Set[String], redirectUri: Uri)
 
   object queries {
     def getTokenDetails(token: String): Query0[TokenDetails] =
-      sql"""SELECT expires, principal FROM token WHERE uuid = $token"""
+      sql"""SELECT expires, principal, entitlements FROM token WHERE uuid = $token"""
         .query[TokenDetails]
 
     def lookupClient(clientId: String): Query0[ClientRow] =
@@ -120,6 +128,10 @@ object DatabaseBackend {
     def getPayload(token: String, now: Instant): Query0[Payload] =
       sql"""SELECT principal, display_name, mail, entitlements FROM token WHERE uuid = $token AND expires > $now"""
         .query[Payload]
+
+    def lookupResourceServerSecret(resourceServerId: String): Query0[String] =
+      sql"""SELECT secret FROM resource_server WHERE id = $resourceServerId"""
+        .query[String]
   }
 
   implicit val uriMeta: Meta[Uri] = Meta[String].imap(Uri.unsafeFromString)(_.renderString)

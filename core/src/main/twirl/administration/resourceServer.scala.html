@@ -1,0 +1,46 @@
+@import se.su.dsv.oauth.administration.ResourceServer
+
+@(resourceServer: ResourceServer)
+
+@html.dsv("Resource server administration") {
+
+    <h2>Resource servers</h2>
+
+    <h3>@resourceServer.name</h3>
+
+    <div id="current">
+        <dl>
+            <dt>Client id</dt>
+            <dd>@resourceServer.id</dd>
+
+            <dt>Client secret</dt>
+            <dd>@resourceServer.secret</dd>
+        </dl>
+        <a href="#" onclick="document.getElementById('current').style.display='none'; document.getElementById('edit').style.display='block';">Edit</a>
+    </div>
+
+    <div id="edit" style="display: none;">
+        <form action="/admin/resource-server/@resourceServer.id" method="post">
+            <label>
+                Name
+                <input type="text" name="name" required value="@resourceServer.name" autocomplete="off">
+            </label>
+            <br>
+            <label>
+                Client id
+                <input type="text" readonly value="@resourceServer.id" size="36">
+            </label>
+            <br>
+            <label>
+                Client secret
+                <input type="text" name="secret"  minlength="32" maxlength="32" value="@resourceServer.secret" size="32" pattern="[a-zA-Z0-9]+" autocomplete="off">
+                <small>a-z A-Z 0-9, 32 characters</small>
+            </label>
+            <br>
+            <button type="submit">Save</button>
+            <a href="#" onclick="document.getElementById('current').style.display='block'; document.getElementById('edit').style.display='none';">Cancel</a>
+        </form>
+    </div>
+
+    <a href="/admin">&larr; Back to resource servers list</a>
+}
