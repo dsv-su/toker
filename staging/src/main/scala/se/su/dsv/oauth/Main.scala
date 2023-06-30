@@ -13,6 +13,7 @@ import javax.sql.DataSource
 import org.flywaydb.core.Flyway
 import org.http4s.{HttpRoutes, Request}
 import org.http4s.server.AuthMiddleware
+import org.http4s.server.middleware.CORS
 import se.su.dsv.oauth.endpoint.*
 
 import scala.concurrent.ExecutionContext
@@ -49,7 +50,8 @@ class Main extends ServletContextListener {
 
     mountService(ctx,
       name = "exchange",
-      service = new Exchange(backend.lookupClient, backend.lookupCode, backend.generateToken).service,
+      service = CORS.policy
+        .apply(new Exchange(backend.lookupClient, backend.lookupCode, backend.generateToken).service),
       mapping = "/exchange")
 
     mountService(ctx,

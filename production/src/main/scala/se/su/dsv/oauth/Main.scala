@@ -5,12 +5,14 @@ import cats.effect.std.Dispatcher
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import doobie.util.transactor.Transactor
+
 import javax.naming.InitialContext
 import javax.servlet.annotation.WebListener
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
 import javax.sql.DataSource
 import org.flywaydb.core.Flyway
 import org.http4s.server.AuthMiddleware
+import org.http4s.server.middleware.CORS
 import org.http4s.{HttpRoutes, Request}
 import se.su.dsv.oauth.endpoint.*
 
@@ -48,7 +50,8 @@ class Main extends ServletContextListener {
 
     mountService(ctx,
       name = "exchange",
-      service = new Exchange(backend.lookupClient, backend.lookupCode, backend.generateToken).service,
+      service = CORS.policy
+        .apply(new Exchange(backend.lookupClient, backend.lookupCode, backend.generateToken).service),
       mapping = "/exchange")
 
     mountService(ctx,
