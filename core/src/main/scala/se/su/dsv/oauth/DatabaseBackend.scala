@@ -16,7 +16,7 @@ import scala.collection.immutable.Set
 class DatabaseBackend[F[_]](xa: Transactor[F])(implicit S: Sync[F]) {
   import DatabaseBackend._
 
-  private val TokenDuration: Duration = Duration.ofHours(1)
+  private val TokenDuration: Duration = Duration.ofHours(8)
 
   def lookupClient(clientId: String): OptionT[F, Client] =
     OptionT(queries.lookupClient(clientId)
