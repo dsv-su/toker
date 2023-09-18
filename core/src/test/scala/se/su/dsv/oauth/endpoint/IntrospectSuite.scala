@@ -81,6 +81,25 @@ class IntrospectSuite extends AnyWordSpec with Matchers with Inside with OptionV
           }
         }
       }
+
+      "include entitlements as scopes" in {
+        val request = Request[IO](method = Method.POST)
+          .withHeaders(Authorization(BasicCredentials(resourceServerId, resourceServerSecret)))
+          .withEntity(UrlForm("token" -> token))
+
+        val response = introspect.run(request)
+          .unsafeRunSync()
+
+        response.status should be(Status.Ok)
+
+        val body = response.as[Json].unsafeRunSync()
+
+        inside(body.asObject.value) { jsonObject =>
+          inside(jsonObject("scope").value) { scopes =>
+            scopes.asString.value.split(" ") should contain("test-environment")
+          }
+        }
+      }
     }
   }
 }

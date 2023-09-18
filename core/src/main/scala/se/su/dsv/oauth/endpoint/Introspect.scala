@@ -59,6 +59,7 @@ object Introspection {
           "active" -> Json.True,
           "sub" -> subject.asJson,
           "exp" -> expiration.getEpochSecond.asJson,
+          "scope" -> entitlements.values.mkString(" ").asJson,
           "entitlements" -> entitlements.values.asJson)
       case Inactive => Json.obj("active" -> Json.False)
     }
