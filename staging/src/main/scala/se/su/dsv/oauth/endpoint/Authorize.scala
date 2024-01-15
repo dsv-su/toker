@@ -25,22 +25,25 @@ class Authorize[F[_] : Concurrent]
 
   def service: HttpRoutes[F] = HttpRoutes.of {
     case request @ GET -> Root =>
-      validateDeveloperAccess(request).value flatMap {
-        case Some(()) =>
-          Ok(_root_.development.html.authorize(request.params, request.attributes))
-        case None =>
-          Forbidden()
+      if (hasDeveloperAccess(request)) {
+        Ok(_root_.development.html.authorize(request.params, request.attributes))
+      } else {
+        val response = for {
+          authorizationRequest <- AuthorizationRequest.fromRaw(request).toOptionT
+          payload <- getPayloadFromShibboleth(request).toOptionT
+          response <- OptionT.liftF(authorize(authorizationRequest, payload))
+        } yield response
+        response.getOrElseF(Forbidden())
       }
     case request @ POST -> Root =>
       val response = for {
         _ <- validateDeveloperAccess(request)
-            .toRight[AuthorizeError](NotDeveloper)
         form <- request.attemptAs[UrlForm]
             .leftMap(BadInput.apply)
         authorizationRequest <- AuthorizationRequest.fromForm(form)
             .toOptionT
             .toRight(InvalidAuthorizationRequest)
-        payload <- toPayload(form)
+        payload <- getCustomPayload(form)
             .toOptionT
             .toRight(MissingPrincipal)
         response <- EitherT.liftF(authorize(authorizationRequest, payload))
@@ -51,15 +54,21 @@ class Authorize[F[_] : Concurrent]
       }
   }
 
-  private def validateDeveloperAccess(request: Request[F]): OptionT[F, Unit] = {
-    request.attributes
-      .lookup(EntitlementsKey)
-      .filter(_.hasEntitlement(developerEntitlement))
-      .toOptionT
-      .void
+  private def validateDeveloperAccess(request: Request[F]): EitherT[F, AuthorizeError, Unit] = {
+    if (hasDeveloperAccess(request)) {
+      EitherT.rightT(())
+    } else {
+      EitherT.leftT(NotDeveloper)
+    }
   }
 
-  private def toPayload(form: UrlForm): Option[Payload] = {
+  private def hasDeveloperAccess(request: Request[F]) = {
+    request.attributes
+      .lookup(EntitlementsKey)
+      .exists(_.hasEntitlement(developerEntitlement))
+  }
+
+  private def getCustomPayload(form: UrlForm): Option[Payload] = {
     for {
       principal <- form.getFirst("principal")
     } yield Payload(
@@ -70,4 +79,12 @@ class Authorize[F[_] : Concurrent]
         .fold(List.empty[String])(_.linesIterator.toList.map(e => s"$entitlementPrefix:$e")))
     )
   }
+
+  private def getPayloadFromShibboleth(request: Request[F]): Option[Payload] =
+    for {
+      principal <- request.attributes.lookup(RemoteUser)
+      displayName = request.attributes.lookup(DisplayName)
+      mail = request.attributes.lookup(Mail)
+      entitlements = request.attributes.lookup(EntitlementsKey).getOrElse(Entitlements(List.empty))
+    } yield Payload(principal, displayName, mail, entitlements)
 }
