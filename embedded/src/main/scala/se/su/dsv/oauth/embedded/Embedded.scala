@@ -10,7 +10,7 @@ import org.http4s.{HttpRoutes, Uri}
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.middleware.CORS
 import se.su.dsv.oauth.{Client, RemoteUser, ShibbolethAwareHttp4sServlet}
-import se.su.dsv.oauth.endpoint.{Administration, DeveloperCustomAuthorize, Exchange, Introspect, Verify}
+import se.su.dsv.oauth.endpoint.{Administration, DeveloperCustomAuthorize, Exchange, Introspect, Introspection, Verify}
 
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
 import javax.servlet.annotation.WebListener
@@ -73,12 +73,22 @@ class Embedded extends ServletContextListener {
 
     mountService(ctx,
       name = "verify",
-      service = new Verify[IO](lookupToken = backend.tokens.lookup).service,
+      service = new Verify[IO](lookupToken = token => backend.tokens.lookup(token).map(_._2)).service,
       mapping = "/verify")
 
     mountService(ctx,
       name = "introspect",
-      service = new Introspect[IO](???, ???).service,
+      service = new Introspect[IO](
+        lookupToken = token => for {
+          payload <- backend.tokens.lookup(token).value
+        } yield payload match {
+          case Some(expiration, payload) => Introspection.Active(payload.principal, expiration, payload.entitlements)
+          case None => Introspection.Inactive
+        },
+        lookupResourceServerSecret = resourceServerId => (for {
+          resourceServer <- backend.resourceServers.lookup(resourceServerId)
+        } yield resourceServer.id).value
+      ).service,
       mapping = "/introspect")
 
     def mountService(
