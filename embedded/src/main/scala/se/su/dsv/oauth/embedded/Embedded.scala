@@ -1,13 +1,15 @@
 package se.su.dsv.oauth.embedded
 
+import cats.Applicative
 import cats.data.{Kleisli, OptionT}
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import cats.effect.std.Dispatcher
 import cats.effect.unsafe.implicits.global
-import org.http4s.HttpRoutes
+import cats.syntax.all.*
+import org.http4s.{HttpRoutes, Uri}
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.middleware.CORS
-import se.su.dsv.oauth.{RemoteUser, ShibbolethAwareHttp4sServlet}
+import se.su.dsv.oauth.{Client, RemoteUser, ShibbolethAwareHttp4sServlet}
 import se.su.dsv.oauth.endpoint.{Administration, DeveloperCustomAuthorize, Exchange, Introspect, Verify}
 
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
@@ -20,19 +22,39 @@ class Embedded extends ServletContextListener {
   override def contextInitialized(sce: ServletContextEvent): Unit = {
     val resources = for {
       dispatcher <- Dispatcher.parallel[IO]
-    } yield dispatcher
+      backend <- Resource.eval(for {
+        store <- InMemoryStore[IO]
 
-    val (dispatcher, deallocate) = resources.allocated.unsafeRunSync()
+        // Check environment variables and register clients and resource servers
+        _ <- (for {
+          id <- sys.env.get("CLIENT_ID")
+          secret = sys.env.get("CLIENT_SECRET")
+          uriString <- sys.env.get("CLIENT_REDIRECT_URI")
+        } yield parseUri(uriString).map(uri => store.clients.register(id, secret, uri))).orEmpty
+        _ <- (for {
+          id <- sys.env.get("RESOURCE_SERVER_ID")
+          secret <- sys.env.get("RESOURCE_SERVER_SECRET")
+        } yield store.resourceServers.register(id, secret)).orEmpty
+      } yield store)
+    } yield (dispatcher, backend)
+
+    val ((dispatcher, backend), deallocate) = resources.allocated.unsafeRunSync()
     this.shutdown = deallocate
 
     val ctx = sce.getServletContext
 
-    val remoteUserAuthentication = AuthMiddleware[IO, String](Kleisli(
-      req => OptionT.fromOption(req.attributes.lookup(RemoteUser))))
-
     mountService(ctx,
       name = "authorize",
-      service = new DeveloperCustomAuthorize[IO](???, ???).service,
+      service = new DeveloperCustomAuthorize[IO](
+        lookupClient = clientId => for {
+          client <- backend.clients.lookup(clientId)
+        } yield client.secret match {
+          case Some(secret) => Client.Confidential(client.id, secret, Set.empty, client.redirectUri)
+          case None => Client.Public(client.id, Set.empty, client.redirectUri)
+        },
+        generateCode = (clientId, redirectUri, payload, codeChallenge) => for {
+          code <- backend.codes.generate(clientId, redirectUri, payload, codeChallenge)
+        } yield code).service,
       mapping = "/authorize")
 
     mountService(ctx,
@@ -51,26 +73,12 @@ class Embedded extends ServletContextListener {
       service = new Introspect[IO](???, ???).service,
       mapping = "/introspect")
 
-    mountService(ctx,
-      name = "administration",
-      service = remoteUserAuthentication(new Administration[IO](
-        listClients = ???,
-        lookupClient = ???,
-        registerClient = ???,
-        updateClient = ???,
-        registerResourceServer = ???,
-        lookupResourceServer = ???,
-        listResourceServers = ???,
-        updateResourceServer = ???
-      ).service),
-      mapping = "/admin/*")
-
     def mountService(
       self: ServletContext,
       name: String,
       service: HttpRoutes[IO],
       mapping: String = "/*"): ServletRegistration.Dynamic = {
-      val servlet = ShibbolethAwareHttp4sServlet(
+      val servlet = ShibbolethAwareHttp4sServlet[IO](
         service = service,
         dispatcher = dispatcher
       )
@@ -81,6 +89,8 @@ class Embedded extends ServletContextListener {
       reg
     }
   }
+
+  private def parseUri(uri: String): IO[Uri] = IO.fromEither(Uri.fromString(uri))
 
   override def contextDestroyed(sce: ServletContextEvent): Unit = {
     shutdown.unsafeRunSync()
