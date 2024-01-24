@@ -17,7 +17,7 @@ final case class BadInput(decodeFailure: DecodeFailure) extends AuthorizeError
 case object InvalidAuthorizationRequest extends AuthorizeError
 case object MissingPrincipal extends AuthorizeError
 
-class Authorize[F[_] : Concurrent]
+class DeveloperCustomAuthorize[F[_] : Concurrent]
 (
   lookupClient: String => OptionT[F, Client],
   generateCode: (String, Option[Uri], Payload, Option[CodeChallenge]) => F[Code]
