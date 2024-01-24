@@ -84,3 +84,15 @@ lazy val dev = project.in(file("dev"))
         IO.copyDirectory(stagingWebapp, webappDir)
     }
   )
+
+lazy val embedded = project.in(file("embedded"))
+  .dependsOn(core)
+  .enablePlugins(JettyPlugin)
+  .settings(
+    name := "embedded",
+    webappPostProcess := {
+      webappDir =>
+        val stagingWebapp = (staging / Compile / webappPrepare / sourceDirectory).value / "webapp"
+        IO.copyDirectory(stagingWebapp, webappDir)
+    }
+  )
