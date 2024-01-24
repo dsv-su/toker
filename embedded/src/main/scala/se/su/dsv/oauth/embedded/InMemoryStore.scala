@@ -5,9 +5,12 @@ import cats.data.OptionT
 import cats.effect.{Ref, Sync}
 import cats.syntax.all.*
 import org.http4s.Uri
-import se.su.dsv.oauth.{Code, CodeChallenge, Payload}
+import se.su.dsv.oauth.{Code, CodeChallenge, GeneratedToken, Payload, Token}
 
-private case class Store(clients: Map[String, RegisteredClient] = Map.empty, resourceServers: Map[String, String] = Map.empty)
+private case class Store(
+  clients: Map[String, RegisteredClient] = Map.empty,
+  activeCodes: Map[(String, String), Code] = Map.empty,
+  resourceServers: Map[String, String] = Map.empty)
 
 case class RegisteredClient(
   id: String,
@@ -32,7 +35,22 @@ class InMemoryStore[F[_]: Sync] private (database: Ref[F, Store]) {
       codeChallenge: Option[CodeChallenge]): F[Code] =
       for {
         uuid <- Sync[F].delay(java.util.UUID.randomUUID())
-      } yield Code(redirectUri, uuid, payload, codeChallenge)
+        code = Code(redirectUri, uuid, payload, codeChallenge)
+        _ <- database.update(store =>
+          store.copy(activeCodes = store.activeCodes + ((clientId, uuid.toString) -> code))
+        )
+      } yield code
+
+    def lookup(clientId: String, code: String): OptionT[F, Code] =
+      OptionT(database.get.map(_.activeCodes.get((clientId, code))))
+  }
+
+  object tokens {
+    def generate(payload: Payload): F[GeneratedToken] =
+      for {
+        uuid <- Sync[F].delay(java.util.UUID.randomUUID().toString)
+        token = GeneratedToken(Token(uuid), java.time.Duration.ofHours(8))
+      } yield token
   }
 
   object resourceServers {

@@ -60,7 +60,15 @@ class Embedded extends ServletContextListener {
     mountService(ctx,
       name = "exchange",
       service = CORS.policy
-        .apply(new Exchange[IO](???, ???, ???).service),
+        .apply(new Exchange[IO](
+          lookupClient = clientId => for {
+            client <- backend.clients.lookup(clientId)
+          } yield client.secret match {
+            case Some(secret) => Client.Confidential(client.id, secret, Set.empty, client.redirectUri)
+            case None => Client.Public(client.id, Set.empty, client.redirectUri)
+          },
+          lookupCode = backend.codes.lookup,
+          generateToken = backend.tokens.generate).service),
       mapping = "/exchange")
 
     mountService(ctx,
