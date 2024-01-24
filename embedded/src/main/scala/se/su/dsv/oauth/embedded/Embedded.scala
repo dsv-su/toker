@@ -87,7 +87,7 @@ class Embedded extends ServletContextListener {
         },
         lookupResourceServerSecret = resourceServerId => (for {
           resourceServer <- backend.resourceServers.lookup(resourceServerId)
-        } yield resourceServer.id).value
+        } yield resourceServer.secret).value
       ).service,
       mapping = "/introspect")
 
