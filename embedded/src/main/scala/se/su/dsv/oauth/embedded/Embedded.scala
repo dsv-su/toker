@@ -8,7 +8,7 @@ import org.http4s.HttpRoutes
 import org.http4s.server.AuthMiddleware
 import org.http4s.server.middleware.CORS
 import se.su.dsv.oauth.{RemoteUser, ShibbolethAwareHttp4sServlet}
-import se.su.dsv.oauth.endpoint.{Administration, Authorize, Exchange, Introspect, Verify}
+import se.su.dsv.oauth.endpoint.{Administration, DeveloperCustomAuthorize, Exchange, Introspect, Verify}
 
 import javax.servlet.{ServletContext, ServletContextEvent, ServletContextListener, ServletRegistration}
 import javax.servlet.annotation.WebListener
@@ -26,10 +26,13 @@ class Embedded extends ServletContextListener {
     this.shutdown = deallocate
 
     val ctx = sce.getServletContext
-    
+
+    val remoteUserAuthentication = AuthMiddleware[IO, String](Kleisli(
+      req => OptionT.fromOption(req.attributes.lookup(RemoteUser))))
+
     mountService(ctx,
       name = "authorize",
-      service = new Authorize[IO](???, ???).service,
+      service = new DeveloperCustomAuthorize[IO](???, ???).service,
       mapping = "/authorize")
 
     mountService(ctx,
@@ -47,9 +50,6 @@ class Embedded extends ServletContextListener {
       name = "introspect",
       service = new Introspect[IO](???, ???).service,
       mapping = "/introspect")
-
-    val remoteUserAuthentication = AuthMiddleware[IO, String](Kleisli(
-      req => OptionT.fromOption(req.attributes.lookup(RemoteUser))))
 
     mountService(ctx,
       name = "administration",
