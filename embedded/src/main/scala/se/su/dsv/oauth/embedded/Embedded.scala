@@ -73,7 +73,7 @@ class Embedded extends ServletContextListener {
 
     mountService(ctx,
       name = "verify",
-      service = new Verify[IO](???).service,
+      service = new Verify[IO](lookupToken = backend.tokens.lookup).service,
       mapping = "/verify")
 
     mountService(ctx,

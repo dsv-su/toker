@@ -10,6 +10,7 @@ import se.su.dsv.oauth.{Code, CodeChallenge, GeneratedToken, Payload, Token}
 private case class Store(
   clients: Map[String, RegisteredClient] = Map.empty,
   activeCodes: Map[(String, String), Code] = Map.empty,
+  tokens: Map[Token, Payload] = Map.empty,
   resourceServers: Map[String, String] = Map.empty)
 
 case class RegisteredClient(
@@ -49,8 +50,12 @@ class InMemoryStore[F[_]: Sync] private (database: Ref[F, Store]) {
     def generate(payload: Payload): F[GeneratedToken] =
       for {
         uuid <- Sync[F].delay(java.util.UUID.randomUUID().toString)
-        token = GeneratedToken(Token(uuid), java.time.Duration.ofHours(8))
-      } yield token
+        token = Token(uuid)
+        _ <- database.update(store => store.copy(tokens = store.tokens + (token -> payload)))
+      } yield GeneratedToken(token, java.time.Duration.ofHours(8))
+
+    def lookup(token: Token): OptionT[F, Payload] =
+      OptionT(database.get.map(_.tokens.get(token)))
   }
 
   object resourceServers {
