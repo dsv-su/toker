@@ -30,7 +30,7 @@ class Embedded extends ServletContextListener {
           id <- sys.env.get("CLIENT_ID")
           secret = sys.env.get("CLIENT_SECRET")
           uriString <- sys.env.get("CLIENT_REDIRECT_URI")
-        } yield parseUri(uriString).map(uri => store.clients.register(id, secret, uri))).orEmpty
+        } yield parseUri(uriString).flatMap(uri => store.clients.register(id, secret, uri))).orEmpty
         _ <- (for {
           id <- sys.env.get("RESOURCE_SERVER_ID")
           secret <- sys.env.get("RESOURCE_SERVER_SECRET")
