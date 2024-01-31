@@ -6,6 +6,7 @@ COPY project/ project/
 RUN sbt embedded/update
 
 COPY core/ core/
+COPY staging/ staging/
 COPY embedded/ embedded/
 
 EXPOSE 8080
