@@ -9,5 +9,7 @@ COPY core/ core/
 COPY staging/ staging/
 COPY embedded/ embedded/
 
+RUN sbt embedded/compile
+
 EXPOSE 8080
 ENTRYPOINT exec sbt ~embedded/Jetty/start
