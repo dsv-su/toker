@@ -42,6 +42,9 @@ class Embedded extends ServletContextListener {
     this.shutdown = deallocate
 
     val ctx = sce.getServletContext
+    
+    ctx.addFilter("shibboleth", new AuthorizeAllRequestsFilter(sys.env.get("SCOPE")))
+      .addMappingForUrlPatterns(null, false, "/*")
 
     mountService(ctx,
       name = "authorize",
