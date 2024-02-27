@@ -2,7 +2,7 @@ ThisBuild / organization := "se.su.dsv"
 
 ThisBuild / version := "1.0"
 
-ThisBuild / scalaVersion := "3.2.1"
+ThisBuild / scalaVersion := "3.3.1"
 
 val http4sVersion = "0.23.18"
 
