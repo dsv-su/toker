@@ -28,7 +28,7 @@
         <label>
             Entitlements:
             <br>
-            <textarea name="entitlements" cols="50" rows="5" readonly>@attributes.lookup(EntitlementsKey).toList.flatMap(_.values).map(_.substring(entitlementPrefix.length + 1)).mkString("\n")</textarea>
+            <textarea name="entitlements" cols="50" rows="5" readonly>@attributes.lookup(EntitlementsKey).toList.flatMap(_.values).mkString("\n")</textarea>
         </label>
         <br>
         <button type="submit">Issue ticket</button>
@@ -62,8 +62,6 @@
             <br>
             <textarea name="entitlements" placeholder="dsv-user:staff&#10;dsv-user:gdpr" cols="50"></textarea>
         </label>
-        <br>
-        <small>All entitlements are automatically prefixed with <code>@se.su.dsv.oauth.entitlementPrefix:</code></small>
         <br>
         <button type="submit">Issue ticket</button>
 

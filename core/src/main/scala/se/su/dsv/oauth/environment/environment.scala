@@ -1,5 +1,5 @@
 package se.su.dsv.oauth
 
 package object environment {
-  val developerEntitlement = s"$entitlementPrefix:dsv-user:toker-test"
+  val developerEntitlement = s"urn:mace:swami.se:gmai:dsv-user:toker-test"
 }

@@ -25,7 +25,7 @@ class ExchangeSuite extends AnyWordSpec with Matchers with Inside with OptionVal
       val confidentialClient = Client.Confidential("client-1", "client-1-secret", Set(), localhost)
       val publicClient = Client.Public("client-2", Set(), localhost)
 
-      val payload = Payload("test@localhost", Some("Test Testsson"), None, Entitlements(List(s"$entitlementPrefix:test-runner")))
+      val payload = Payload("test@localhost", Some("Test Testsson"), None, Entitlements(List(s"test-runner")))
 
       val codeWithoutRedirectWithoutPKCE = Code(None, UUID.randomUUID(), payload, None)
       val codeWithRedirectWithoutPKCE = Code(Some(localhost), UUID.randomUUID(), payload, None)
