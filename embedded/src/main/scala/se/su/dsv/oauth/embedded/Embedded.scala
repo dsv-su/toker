@@ -30,7 +30,8 @@ class Embedded extends ServletContextListener {
           id <- sys.env.get("CLIENT_ID")
           secret = sys.env.get("CLIENT_SECRET")
           uriString <- sys.env.get("CLIENT_REDIRECT_URI")
-        } yield parseUri(uriString).flatMap(uri => store.clients.register(id, secret, uri))).orEmpty
+          scopes = sys.env.get("CLIENT_SCOPES").map(_.split(' ').toSet).getOrElse(Set.empty)
+        } yield parseUri(uriString).flatMap(uri => store.clients.register(id, secret, uri, scopes))).orEmpty
         _ <- (for {
           id <- sys.env.get("RESOURCE_SERVER_ID")
           secret <- sys.env.get("RESOURCE_SERVER_SECRET")
@@ -52,8 +53,8 @@ class Embedded extends ServletContextListener {
         lookupClient = clientId => for {
           client <- backend.clients.lookup(clientId)
         } yield client.secret match {
-          case Some(secret) => Client.Confidential(client.id, secret, Set.empty, client.redirectUri)
-          case None => Client.Public(client.id, Set.empty, client.redirectUri)
+          case Some(secret) => Client.Confidential(client.id, secret, client.scopes, client.redirectUri)
+          case None => Client.Public(client.id, client.scopes, client.redirectUri)
         },
         generateCode = (clientId, redirectUri, payload, codeChallenge) => for {
           code <- backend.codes.generate(clientId, redirectUri, payload, codeChallenge)

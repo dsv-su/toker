@@ -16,7 +16,8 @@ private case class Store(
 case class RegisteredClient(
   id: String,
   secret: Option[String],
-  redirectUri: Uri
+  redirectUri: Uri,
+  scopes: Set[String] = Set.empty
 )
 
 case class ResourceServer(
@@ -26,8 +27,8 @@ case class ResourceServer(
 
 class InMemoryStore[F[_]: Sync] private (database: Ref[F, Store]) {
   object clients {
-    def register(id: String, secret: Option[String], redirectUri: Uri): F[Unit] =
-      database.update(store => store.copy(clients = store.clients.updated(id, RegisteredClient(id, secret, redirectUri))))
+    def register(id: String, secret: Option[String], redirectUri: Uri, scopes: Set[String]): F[Unit] =
+      database.update(store => store.copy(clients = store.clients.updated(id, RegisteredClient(id, secret, redirectUri, scopes))))
 
     def lookup(id: String): OptionT[F, RegisteredClient] =
       OptionT(database.get.map(_.clients.get(id)))
