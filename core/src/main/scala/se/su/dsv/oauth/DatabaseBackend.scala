@@ -130,7 +130,13 @@ object DatabaseBackend {
         .query[Payload]
 
     def lookupResourceServerSecret(resourceServerId: String): Query0[String] =
-      sql"""SELECT secret FROM resource_server WHERE id = $resourceServerId"""
+      sql"""SELECT secret
+            FROM (
+              SELECT id, secret FROM resource_server
+              UNION
+              SELECT uuid, secret FROM client WHERE secret IS NOT NULL
+            ) AS t
+            WHERE id = $resourceServerId"""
         .query[String]
   }
 
