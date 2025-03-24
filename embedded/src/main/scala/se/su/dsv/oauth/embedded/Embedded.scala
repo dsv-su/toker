@@ -89,9 +89,9 @@ class Embedded extends ServletContextListener {
           case Some(expiration, payload) => Introspection.Active(payload.principal, expiration, payload.entitlements)
           case None => Introspection.Inactive
         },
-        lookupResourceServerSecret = resourceServerId => (for {
-          resourceServer <- backend.resourceServers.lookup(resourceServerId)
-        } yield resourceServer.secret).value
+        lookupResourceServerSecret = clientId => (
+          backend.resourceServers.lookup(clientId).map(_.secret) <+> backend.clients.lookup(clientId).subflatMap(_.secret)
+          ).value
       ).service,
       mapping = "/introspect")
 
