@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> Replaced by https://gitea.dsv.su.se/DMC/oauth2-authorization-server
+
 # toker
 Toker is a bridge between Shibboleth (SAML) and OAuth 2.0.
 
